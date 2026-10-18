@@ -10,33 +10,219 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AboutRouteImport } from './routes/about'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ContactRouteImport } from './routes/contact'
+import { Route as DiningRouteImport } from './routes/dining'
+import { Route as AuthenticatedStaffRouteImport } from './routes/_authenticated/staff'
+import { Route as RoomsIndexRouteImport } from './routes/rooms.index'
+import { Route as RoomsCodeRouteImport } from './routes/rooms.$code'
+import { Route as AuthenticatedStaffIndexRouteImport } from './routes/_authenticated/staff.index'
+import { Route as AuthenticatedStaffBookingsRouteImport } from './routes/_authenticated/staff.bookings'
+import { Route as AuthenticatedStaffMenuRouteImport } from './routes/_authenticated/staff.menu'
+import { Route as AuthenticatedStaffOrdersRouteImport } from './routes/_authenticated/staff.orders'
+import { Route as AuthenticatedStaffPosRouteImport } from './routes/_authenticated/staff.pos'
+import { Route as AuthenticatedStaffRoomsRouteImport } from './routes/_authenticated/staff.rooms'
+import { Route as AuthenticatedStaffTeamRouteImport } from './routes/_authenticated/staff.team'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DiningRoute = DiningRouteImport.update({
+  id: '/dining',
+  path: '/dining',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedStaffRoute = AuthenticatedStaffRouteImport.update({
+  id: '/staff',
+  path: '/staff',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const RoomsIndexRoute = RoomsIndexRouteImport.update({
+  id: '/rooms/',
+  path: '/rooms/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoomsCodeRoute = RoomsCodeRouteImport.update({
+  id: '/rooms/$code',
+  path: '/rooms/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedStaffIndexRoute = AuthenticatedStaffIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedStaffRoute,
+} as any)
+const AuthenticatedStaffBookingsRoute =
+  AuthenticatedStaffBookingsRouteImport.update({
+    id: '/bookings',
+    path: '/bookings',
+    getParentRoute: () => AuthenticatedStaffRoute,
+  } as any)
+const AuthenticatedStaffMenuRoute = AuthenticatedStaffMenuRouteImport.update({
+  id: '/menu',
+  path: '/menu',
+  getParentRoute: () => AuthenticatedStaffRoute,
+} as any)
+const AuthenticatedStaffOrdersRoute =
+  AuthenticatedStaffOrdersRouteImport.update({
+    id: '/orders',
+    path: '/orders',
+    getParentRoute: () => AuthenticatedStaffRoute,
+  } as any)
+const AuthenticatedStaffPosRoute = AuthenticatedStaffPosRouteImport.update({
+  id: '/pos',
+  path: '/pos',
+  getParentRoute: () => AuthenticatedStaffRoute,
+} as any)
+const AuthenticatedStaffRoomsRoute = AuthenticatedStaffRoomsRouteImport.update({
+  id: '/rooms',
+  path: '/rooms',
+  getParentRoute: () => AuthenticatedStaffRoute,
+} as any)
+const AuthenticatedStaffTeamRoute = AuthenticatedStaffTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
+  getParentRoute: () => AuthenticatedStaffRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/auth': typeof AuthRoute
+  '/contact': typeof ContactRoute
+  '/dining': typeof DiningRoute
+  '/staff': typeof AuthenticatedStaffRouteWithChildren
+  '/rooms/$code': typeof RoomsCodeRoute
+  '/rooms/': typeof RoomsIndexRoute
+  '/staff/bookings': typeof AuthenticatedStaffBookingsRoute
+  '/staff/menu': typeof AuthenticatedStaffMenuRoute
+  '/staff/orders': typeof AuthenticatedStaffOrdersRoute
+  '/staff/pos': typeof AuthenticatedStaffPosRoute
+  '/staff/rooms': typeof AuthenticatedStaffRoomsRoute
+  '/staff/team': typeof AuthenticatedStaffTeamRoute
+  '/staff/': typeof AuthenticatedStaffIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/auth': typeof AuthRoute
+  '/contact': typeof ContactRoute
+  '/dining': typeof DiningRoute
+  '/rooms/$code': typeof RoomsCodeRoute
+  '/rooms': typeof RoomsIndexRoute
+  '/staff/bookings': typeof AuthenticatedStaffBookingsRoute
+  '/staff/menu': typeof AuthenticatedStaffMenuRoute
+  '/staff/orders': typeof AuthenticatedStaffOrdersRoute
+  '/staff/pos': typeof AuthenticatedStaffPosRoute
+  '/staff/rooms': typeof AuthenticatedStaffRoomsRoute
+  '/staff/team': typeof AuthenticatedStaffTeamRoute
+  '/staff': typeof AuthenticatedStaffIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/about': typeof AboutRoute
+  '/auth': typeof AuthRoute
+  '/contact': typeof ContactRoute
+  '/dining': typeof DiningRoute
+  '/_authenticated/staff': typeof AuthenticatedStaffRouteWithChildren
+  '/rooms/$code': typeof RoomsCodeRoute
+  '/rooms/': typeof RoomsIndexRoute
+  '/_authenticated/staff/bookings': typeof AuthenticatedStaffBookingsRoute
+  '/_authenticated/staff/menu': typeof AuthenticatedStaffMenuRoute
+  '/_authenticated/staff/orders': typeof AuthenticatedStaffOrdersRoute
+  '/_authenticated/staff/pos': typeof AuthenticatedStaffPosRoute
+  '/_authenticated/staff/rooms': typeof AuthenticatedStaffRoomsRoute
+  '/_authenticated/staff/team': typeof AuthenticatedStaffTeamRoute
+  '/_authenticated/staff/': typeof AuthenticatedStaffIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/about'
+    | '/auth'
+    | '/contact'
+    | '/dining'
+    | '/staff'
+    | '/rooms/$code'
+    | '/rooms/'
+    | '/staff/bookings'
+    | '/staff/menu'
+    | '/staff/orders'
+    | '/staff/pos'
+    | '/staff/rooms'
+    | '/staff/team'
+    | '/staff/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/about'
+    | '/auth'
+    | '/contact'
+    | '/dining'
+    | '/rooms/$code'
+    | '/rooms'
+    | '/staff/bookings'
+    | '/staff/menu'
+    | '/staff/orders'
+    | '/staff/pos'
+    | '/staff/rooms'
+    | '/staff/team'
+    | '/staff'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/about'
+    | '/auth'
+    | '/contact'
+    | '/dining'
+    | '/_authenticated/staff'
+    | '/rooms/$code'
+    | '/rooms/'
+    | '/_authenticated/staff/bookings'
+    | '/_authenticated/staff/menu'
+    | '/_authenticated/staff/orders'
+    | '/_authenticated/staff/pos'
+    | '/_authenticated/staff/rooms'
+    | '/_authenticated/staff/team'
+    | '/_authenticated/staff/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AboutRoute: typeof AboutRoute
+  AuthRoute: typeof AuthRoute
+  ContactRoute: typeof ContactRoute
+  DiningRoute: typeof DiningRoute
+  RoomsCodeRoute: typeof RoomsCodeRoute
+  RoomsIndexRoute: typeof RoomsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +234,157 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dining': {
+      id: '/dining'
+      path: '/dining'
+      fullPath: '/dining'
+      preLoaderRoute: typeof DiningRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/staff': {
+      id: '/_authenticated/staff'
+      path: '/staff'
+      fullPath: '/staff'
+      preLoaderRoute: typeof AuthenticatedStaffRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/rooms/': {
+      id: '/rooms/'
+      path: '/rooms'
+      fullPath: '/rooms/'
+      preLoaderRoute: typeof RoomsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rooms/$code': {
+      id: '/rooms/$code'
+      path: '/rooms/$code'
+      fullPath: '/rooms/$code'
+      preLoaderRoute: typeof RoomsCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/staff/': {
+      id: '/_authenticated/staff/'
+      path: '/'
+      fullPath: '/staff/'
+      preLoaderRoute: typeof AuthenticatedStaffIndexRouteImport
+      parentRoute: typeof AuthenticatedStaffRoute
+    }
+    '/_authenticated/staff/bookings': {
+      id: '/_authenticated/staff/bookings'
+      path: '/bookings'
+      fullPath: '/staff/bookings'
+      preLoaderRoute: typeof AuthenticatedStaffBookingsRouteImport
+      parentRoute: typeof AuthenticatedStaffRoute
+    }
+    '/_authenticated/staff/menu': {
+      id: '/_authenticated/staff/menu'
+      path: '/menu'
+      fullPath: '/staff/menu'
+      preLoaderRoute: typeof AuthenticatedStaffMenuRouteImport
+      parentRoute: typeof AuthenticatedStaffRoute
+    }
+    '/_authenticated/staff/orders': {
+      id: '/_authenticated/staff/orders'
+      path: '/orders'
+      fullPath: '/staff/orders'
+      preLoaderRoute: typeof AuthenticatedStaffOrdersRouteImport
+      parentRoute: typeof AuthenticatedStaffRoute
+    }
+    '/_authenticated/staff/pos': {
+      id: '/_authenticated/staff/pos'
+      path: '/pos'
+      fullPath: '/staff/pos'
+      preLoaderRoute: typeof AuthenticatedStaffPosRouteImport
+      parentRoute: typeof AuthenticatedStaffRoute
+    }
+    '/_authenticated/staff/rooms': {
+      id: '/_authenticated/staff/rooms'
+      path: '/rooms'
+      fullPath: '/staff/rooms'
+      preLoaderRoute: typeof AuthenticatedStaffRoomsRouteImport
+      parentRoute: typeof AuthenticatedStaffRoute
+    }
+    '/_authenticated/staff/team': {
+      id: '/_authenticated/staff/team'
+      path: '/team'
+      fullPath: '/staff/team'
+      preLoaderRoute: typeof AuthenticatedStaffTeamRouteImport
+      parentRoute: typeof AuthenticatedStaffRoute
+    }
   }
 }
 
+interface AuthenticatedStaffRouteChildren {
+  AuthenticatedStaffBookingsRoute: typeof AuthenticatedStaffBookingsRoute
+  AuthenticatedStaffMenuRoute: typeof AuthenticatedStaffMenuRoute
+  AuthenticatedStaffOrdersRoute: typeof AuthenticatedStaffOrdersRoute
+  AuthenticatedStaffPosRoute: typeof AuthenticatedStaffPosRoute
+  AuthenticatedStaffRoomsRoute: typeof AuthenticatedStaffRoomsRoute
+  AuthenticatedStaffTeamRoute: typeof AuthenticatedStaffTeamRoute
+  AuthenticatedStaffIndexRoute: typeof AuthenticatedStaffIndexRoute
+}
+
+const AuthenticatedStaffRouteChildren: AuthenticatedStaffRouteChildren = {
+  AuthenticatedStaffBookingsRoute: AuthenticatedStaffBookingsRoute,
+  AuthenticatedStaffMenuRoute: AuthenticatedStaffMenuRoute,
+  AuthenticatedStaffOrdersRoute: AuthenticatedStaffOrdersRoute,
+  AuthenticatedStaffPosRoute: AuthenticatedStaffPosRoute,
+  AuthenticatedStaffRoomsRoute: AuthenticatedStaffRoomsRoute,
+  AuthenticatedStaffTeamRoute: AuthenticatedStaffTeamRoute,
+  AuthenticatedStaffIndexRoute: AuthenticatedStaffIndexRoute,
+}
+
+const AuthenticatedStaffRouteWithChildren =
+  AuthenticatedStaffRoute._addFileChildren(AuthenticatedStaffRouteChildren)
+
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedStaffRoute: typeof AuthenticatedStaffRouteWithChildren
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedStaffRoute: AuthenticatedStaffRouteWithChildren,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AboutRoute: AboutRoute,
+  AuthRoute: AuthRoute,
+  ContactRoute: ContactRoute,
+  DiningRoute: DiningRoute,
+  RoomsCodeRoute: RoomsCodeRoute,
+  RoomsIndexRoute: RoomsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
