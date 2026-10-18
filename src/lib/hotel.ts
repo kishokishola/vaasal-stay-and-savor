@@ -53,3 +53,12 @@ export function useRoles(userId?: string) {
   }, [userId]);
   return roles;
 }
+
+export const roomsQuery = {
+  queryKey: ["rooms"],
+  queryFn: async () => {
+    const { data, error } = await supabase.from("rooms").select("*").eq("active", true).order("code");
+    if (error) throw error;
+    return data;
+  },
+};

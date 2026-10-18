@@ -1,9 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Shield, Waves, Sparkles, Headphones } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { SiteLayout } from "@/components/site/SiteLayout";
 import { RoomCard } from "@/components/site/RoomCard";
+import { roomsQuery } from "@/lib/hotel";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/")({
@@ -19,15 +19,6 @@ export const Route = createFileRoute("/")({
   }),
   component: Home,
 });
-
-export const roomsQuery = {
-  queryKey: ["rooms"],
-  queryFn: async () => {
-    const { data, error } = await supabase.from("rooms").select("*").eq("active", true).order("code");
-    if (error) throw error;
-    return data;
-  },
-};
 
 const features = [
   { icon: Sparkles, title: "Relaxed Living", text: "Calm interiors, crisp linen and quiet nights." },

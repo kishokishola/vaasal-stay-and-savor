@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { SiteLayout, PageHero } from "@/components/site/SiteLayout";
 import { RoomCard } from "@/components/site/RoomCard";
-import { roomsQuery } from "./index";
+import { roomsQuery } from "@/lib/hotel";
 
 export const Route = createFileRoute("/rooms/")({
   head: () => ({
