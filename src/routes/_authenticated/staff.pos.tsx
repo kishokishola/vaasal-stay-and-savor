@@ -49,7 +49,7 @@ function Pos() {
   const bump = (id: string, d: number) => setCart((c) => c.map((l) => (l.id === id ? { ...l, qty: l.qty + d } : l)).filter((l) => l.qty > 0));
 
   async function checkout() {
-    if (!cart.length) return toast.error("Cart is empty");
+    if (!cart.length) { toast.error("Cart is empty"); return; }
     setBusy(true);
     const { data: order, error } = await supabase
       .from("orders")
@@ -63,10 +63,10 @@ function Pos() {
       })
       .select()
       .single();
-    if (error || !order) { setBusy(false); return toast.error(error?.message ?? "Failed"); }
+    if (error || !order) { setBusy(false); { toast.error(error?.message ?? "Failed"); return; } }
     const { error: e2 } = await supabase.from("order_items").insert(cart.map((l) => ({ order_id: order.id, menu_item_id: l.id, name: l.name, price: l.price, qty: l.qty })));
     setBusy(false);
-    if (e2) return toast.error(e2.message);
+    if (e2) { toast.error(e2.message); return; }
     setReceipt({ no: order.order_no, type, ref, lines: cart, subtotal, discount, service: t.service, total: t.total, method, at: new Date().toLocaleString() });
     setCart([]); setDiscount(0); setRef("");
     qc.invalidateQueries({ queryKey: ["orders"] });

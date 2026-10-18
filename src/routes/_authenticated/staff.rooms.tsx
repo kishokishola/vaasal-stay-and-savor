@@ -34,21 +34,21 @@ function RoomsAdmin() {
     const row = { ...blank, ...edit, price: Number(edit.price), capacity: Number(edit.capacity) };
     const { id, created_at: _c, ...payload } = row as Room;
     const res = id ? await supabase.from("rooms").update(payload).eq("id", id) : await supabase.from("rooms").insert(payload);
-    if (res.error) return toast.error(res.error.message);
+    if (res.error) { toast.error(res.error.message); return; }
     toast.success("Room saved"); setEdit(null); refresh();
   }
   async function del(id: string) {
     if (!confirm("Delete this room and its bookings?")) return;
     const { error } = await supabase.from("rooms").delete().eq("id", id);
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     refresh();
   }
   async function upload(file: File) {
     const path = `${Date.now()}-${file.name}`;
     const { error } = await supabase.storage.from("rooms").upload(path, file);
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     const { data, error: e2 } = await supabase.storage.from("rooms").createSignedUrl(path, 60 * 60 * 24 * 365 * 10);
-    if (e2 || !data) return toast.error(e2?.message ?? "Upload failed");
+    if (e2 || !data) { toast.error(e2?.message ?? "Upload failed"); return; }
     setEdit((e) => ({ ...e, image_url: data.signedUrl }));
   }
 

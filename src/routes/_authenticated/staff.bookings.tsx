@@ -35,7 +35,7 @@ function Bookings() {
   });
   async function setStatus(id: string, status: string) {
     const { error } = await supabase.from("bookings").update({ status }).eq("id", id);
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     toast.success("Booking updated");
     qc.invalidateQueries({ queryKey: ["bookings"] });
   }

@@ -24,14 +24,14 @@ function Team() {
   async function add(e: React.FormEvent) {
     e.preventDefault();
     const { error } = await supabase.rpc("assign_role_by_email", { _email: email.trim(), _role: role });
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     toast.success("Staff added"); setEmail("");
     qc.invalidateQueries({ queryKey: ["staff"] });
   }
   async function remove(id: string) {
     if (!confirm("Remove this access?")) return;
     const { error } = await supabase.from("user_roles").delete().eq("id", id);
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     qc.invalidateQueries({ queryKey: ["staff"] });
   }
   return (

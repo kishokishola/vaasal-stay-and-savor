@@ -66,8 +66,8 @@ function RoomDetail() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!room) return;
-    if (nights < 1) return toast.error("Please choose valid dates");
-    if (clash) return toast.error("Those dates are already booked");
+    if (nights < 1) { toast.error("Please choose valid dates"); return; }
+    if (clash) { toast.error("Those dates are already booked"); return; }
     setBusy(true);
     const { error } = await supabase.from("bookings").insert({
       room_id: room.id,
@@ -80,7 +80,7 @@ function RoomDetail() {
       notes: form.notes.trim() || null,
     });
     setBusy(false);
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     setDone(true);
   }
 

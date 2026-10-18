@@ -24,10 +24,10 @@ function MenuAdmin() {
   async function add(e: React.FormEvent) {
     e.preventDefault();
     const { error } = await supabase.from("menu_items").insert({ ...n, price: Number(n.price) });
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     setN({ ...n, name: "", price: "", description: "" }); refresh();
   }
-  async function patch(id: string, p: Record<string, unknown>) {
+  async function patch(id: string, p: { name?: string; category?: string; price?: number; available?: boolean }) {
     const { error } = await supabase.from("menu_items").update(p).eq("id", id);
     if (error) toast.error(error.message); else refresh();
   }
