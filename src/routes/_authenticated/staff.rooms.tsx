@@ -47,8 +47,9 @@ function RoomsAdmin() {
     const path = `${Date.now()}-${file.name}`;
     const { error } = await supabase.storage.from("rooms").upload(path, file);
     if (error) return toast.error(error.message);
-    const { data } = supabase.storage.from("rooms").getPublicUrl(path);
-    setEdit((e) => ({ ...e, image_url: data.publicUrl }));
+    const { data, error: e2 } = await supabase.storage.from("rooms").createSignedUrl(path, 60 * 60 * 24 * 365 * 10);
+    if (e2 || !data) return toast.error(e2?.message ?? "Upload failed");
+    setEdit((e) => ({ ...e, image_url: data.signedUrl }));
   }
 
   return (
