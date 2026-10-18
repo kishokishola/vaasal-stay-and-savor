@@ -14,16 +14,278 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      bookings: {
+        Row: {
+          check_in: string
+          check_out: string
+          created_at: string
+          guest_email: string
+          guest_name: string
+          guest_phone: string
+          guests: number
+          id: string
+          notes: string | null
+          room_id: string
+          status: string
+          total: number
+        }
+        Insert: {
+          check_in: string
+          check_out: string
+          created_at?: string
+          guest_email: string
+          guest_name: string
+          guest_phone: string
+          guests?: number
+          id?: string
+          notes?: string | null
+          room_id: string
+          status?: string
+          total?: number
+        }
+        Update: {
+          check_in?: string
+          check_out?: string
+          created_at?: string
+          guest_email?: string
+          guest_name?: string
+          guest_phone?: string
+          guests?: number
+          id?: string
+          notes?: string | null
+          room_id?: string
+          status?: string
+          total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      menu_items: {
+        Row: {
+          available: boolean
+          category: string
+          created_at: string
+          description: string
+          id: string
+          name: string
+          price: number
+        }
+        Insert: {
+          available?: boolean
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          name: string
+          price?: number
+        }
+        Update: {
+          available?: boolean
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          name?: string
+          price?: number
+        }
+        Relationships: []
+      }
+      order_items: {
+        Row: {
+          id: string
+          menu_item_id: string | null
+          name: string
+          order_id: string
+          price: number
+          qty: number
+        }
+        Insert: {
+          id?: string
+          menu_item_id?: string | null
+          name: string
+          order_id: string
+          price: number
+          qty?: number
+        }
+        Update: {
+          id?: string
+          menu_item_id?: string | null
+          name?: string
+          order_id?: string
+          price?: number
+          qty?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_menu_item_id_fkey"
+            columns: ["menu_item_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          cashier_id: string | null
+          created_at: string
+          discount: number
+          id: string
+          order_no: number
+          order_type: string
+          payment_method: string
+          room_code: string | null
+          service_charge: number
+          status: string
+          subtotal: number
+          table_no: string | null
+          total: number
+        }
+        Insert: {
+          cashier_id?: string | null
+          created_at?: string
+          discount?: number
+          id?: string
+          order_no?: number
+          order_type?: string
+          payment_method?: string
+          room_code?: string | null
+          service_charge?: number
+          status?: string
+          subtotal?: number
+          table_no?: string | null
+          total?: number
+        }
+        Update: {
+          cashier_id?: string | null
+          created_at?: string
+          discount?: number
+          id?: string
+          order_no?: number
+          order_type?: string
+          payment_method?: string
+          room_code?: string | null
+          service_charge?: number
+          status?: string
+          subtotal?: number
+          table_no?: string | null
+          total?: number
+        }
+        Relationships: []
+      }
+      rooms: {
+        Row: {
+          ac: boolean
+          active: boolean
+          bathroom: string
+          capacity: number
+          code: string
+          created_at: string
+          description: string
+          id: string
+          image_url: string | null
+          name: string
+          price: number
+          wifi: boolean
+        }
+        Insert: {
+          ac?: boolean
+          active?: boolean
+          bathroom?: string
+          capacity?: number
+          code: string
+          created_at?: string
+          description?: string
+          id?: string
+          image_url?: string | null
+          name: string
+          price?: number
+          wifi?: boolean
+        }
+        Update: {
+          ac?: boolean
+          active?: boolean
+          bathroom?: string
+          capacity?: number
+          code?: string
+          created_at?: string
+          description?: string
+          id?: string
+          image_url?: string | null
+          name?: string
+          price?: number
+          wifi?: boolean
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      assign_role_by_email: {
+        Args: { _email: string; _role: Database["public"]["Enums"]["app_role"] }
+        Returns: undefined
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_staff: { Args: { _user_id: string }; Returns: boolean }
+      list_staff: {
+        Args: never
+        Returns: {
+          email: string
+          role: Database["public"]["Enums"]["app_role"]
+          role_id: string
+          user_id: string
+        }[]
+      }
+      room_booked_ranges: {
+        Args: { _room: string }
+        Returns: {
+          check_in: string
+          check_out: string
+        }[]
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "cashier"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +412,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "cashier"],
+    },
   },
 } as const
