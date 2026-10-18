@@ -17,9 +17,13 @@ function Team() {
   const qc = useQueryClient();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"cashier" | "admin">("cashier");
-  const { data } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ["staff"],
-    queryFn: async () => (await supabase.rpc("list_staff")).data ?? [],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("list_staff");
+      if (error) throw error;
+      return data;
+    },
   });
   async function add(e: React.FormEvent) {
     e.preventDefault();
@@ -42,14 +46,16 @@ function Team() {
         <Input type="email" required placeholder="staff@email.com" className="flex-1 min-w-52" value={email} onChange={(e) => setEmail(e.target.value)} />
         <Select value={role} onValueChange={(v) => setRole(v as "cashier" | "admin")}>
           <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="cashier">Cashier</SelectItem><SelectItem value="admin">Admin</SelectItem></SelectContent>
+          <SelectContent><SelectItem value="cashier">Staff</SelectItem><SelectItem value="admin">Admin</SelectItem></SelectContent>
         </Select>
         <Button type="submit">Add</Button>
       </form>
       <div className="mt-6 divide-y divide-border bg-card shadow-luxe">
+        {isLoading && <p className="p-4 text-sm text-muted-foreground">Loading staff…</p>}
+        {isError && <p role="alert" className="p-4 text-sm text-destructive">Could not load staff: {error.message}</p>}
         {data?.map((s) => (
           <div key={s.role_id} className="flex items-center justify-between p-4">
-            <div>{s.email} <Badge variant="secondary" className="ml-2">{s.role}</Badge></div>
+            <div>{s.email} <Badge variant="secondary" className="ml-2">{s.role === "cashier" ? "staff" : s.role}</Badge></div>
             <Button size="icon" variant="ghost" onClick={() => remove(s.role_id)}><Trash2 /></Button>
           </div>
         ))}

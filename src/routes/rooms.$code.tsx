@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { lkr, nightsBetween } from "@/lib/hotel";
+import { lkr, nightsBetween, publicAsset } from "@/lib/hotel";
 
 export const Route = createFileRoute("/rooms/$code")({
   head: ({ params }) => ({
@@ -87,7 +87,7 @@ function RoomDetail() {
   return (
     <SiteLayout>
       <section className="relative h-[60vh] min-h-[420px] overflow-hidden">
-        <img src={room.image_url ?? "/images/room-double.jpg"} alt={room.name} className="absolute inset-0 h-full w-full object-cover" />
+        <img src={publicAsset(room.image_url ?? "/images/room-double.jpg")} alt={room.name} className="absolute inset-0 h-full w-full object-cover" />
         <div className="absolute inset-0 bg-hero-overlay" />
         <div className="relative mx-auto flex h-full max-w-7xl items-end px-6 pb-14 text-espresso-foreground">
           <div className="fade-up">

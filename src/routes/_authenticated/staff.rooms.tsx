@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { lkr } from "@/lib/hotel";
+import { lkr, publicAsset } from "@/lib/hotel";
 
 export const Route = createFileRoute("/_authenticated/staff/rooms")({
   component: RoomsAdmin,
@@ -61,7 +61,7 @@ function RoomsAdmin() {
       <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
         {data?.map((r) => (
           <div key={r.id} className="bg-card shadow-luxe">
-            <img src={r.image_url ?? ""} alt="" className="aspect-video w-full object-cover" />
+            <img src={publicAsset(r.image_url ?? "/images/room-double.jpg")} alt="" className="aspect-video w-full object-cover" />
             <div className="p-5">
               <div className="flex justify-between">
                 <div><div className="text-xs text-accent">{r.code}</div><div className="font-display text-xl">{r.name}</div></div>
@@ -90,7 +90,7 @@ function RoomsAdmin() {
               </div>
               <div><Label>Description</Label><Textarea value={edit.description ?? ""} onChange={(e) => setEdit({ ...edit, description: e.target.value })} /></div>
               <div><Label>Photo</Label><Input type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
-                {edit.image_url && <img src={edit.image_url} alt="" className="mt-2 h-24 object-cover" />}</div>
+                {edit.image_url && <img src={publicAsset(edit.image_url)} alt="" className="mt-2 h-24 object-cover" />}</div>
               <div className="flex flex-wrap gap-6 text-sm">
                 <label className="flex items-center gap-2"><Switch checked={!!edit.ac} onCheckedChange={(v) => setEdit({ ...edit, ac: v })} />AC</label>
                 <label className="flex items-center gap-2"><Switch checked={!!edit.wifi} onCheckedChange={(v) => setEdit({ ...edit, wifi: v })} />WiFi</label>

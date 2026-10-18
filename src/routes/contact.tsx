@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Phone, Mail, MapPin, MessageCircle } from "lucide-react";
 import { SiteLayout, PageHero } from "@/components/site/SiteLayout";
 import { Button } from "@/components/ui/button";
-import { HOTEL } from "@/lib/hotel";
+import { HOTEL, publicAsset } from "@/lib/hotel";
 
 export const Route = createFileRoute("/contact")({
   head: () => ({
@@ -26,7 +26,7 @@ function Contact() {
   ];
   return (
     <SiteLayout>
-      <PageHero eyebrow="Get in touch" title="Contact Us" image="/images/room-king.jpg" />
+      <PageHero eyebrow="Get in touch" title="Contact Us" image={publicAsset("/images/room-king.jpg")} />
       <section className="mx-auto max-w-5xl px-6 py-24">
         <div className="grid gap-6 md:grid-cols-3">
           {items.map((x) => (

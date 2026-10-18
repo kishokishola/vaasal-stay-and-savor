@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { SiteLayout, PageHero } from "@/components/site/SiteLayout";
-import { lkr } from "@/lib/hotel";
+import { lkr, publicAsset } from "@/lib/hotel";
 
 export const Route = createFileRoute("/dining")({
   head: () => ({
@@ -33,7 +33,7 @@ function Dining() {
   }, {});
   return (
     <SiteLayout>
-      <PageHero eyebrow="The Restaurant" title="Flavours of the North" image="/images/dining.jpg" />
+      <PageHero eyebrow="The Restaurant" title="Flavours of the North" image={publicAsset("/images/dining.jpg")} />
       <section className="mx-auto max-w-5xl px-6 py-24">
         <div className="grid gap-16 md:grid-cols-2">
           {Object.entries(groups).map(([cat, items]) => (

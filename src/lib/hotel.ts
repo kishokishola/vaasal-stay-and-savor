@@ -14,6 +14,11 @@ export const HOTEL = {
 export const lkr = (n: number | string) =>
   "LKR " + Number(n).toLocaleString("en-LK", { maximumFractionDigits: 2 });
 
+export function publicAsset(path: string) {
+  if (/^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(path)) return path;
+  return `${import.meta.env.BASE_URL}${path.replace(/^\/+/, "")}`;
+}
+
 export function nightsBetween(a: string, b: string) {
   if (!a || !b) return 0;
   const d = (new Date(b).getTime() - new Date(a).getTime()) / 86400000;

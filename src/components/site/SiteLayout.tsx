@@ -1,9 +1,10 @@
-import { Link } from "@tanstack/react-router";
-import { useState, type ReactNode } from "react";
-import { Menu, X, Phone, Mail, MapPin, MessageCircle } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useState, useEffect, type ReactNode } from "react";
+import { Menu, X, Phone, Mail, MapPin, MessageCircle, ShieldCheck } from "lucide-react";
 import { HOTEL } from "@/lib/hotel";
 import { Button } from "@/components/ui/button";
 import { ParallaxImage } from "./Parallax";
+import { useStaffAuth } from "@/hooks/useStaffAuth";
 
 const nav = [
   { to: "/", label: "Home" },
@@ -15,6 +16,23 @@ const nav = [
 
 export function SiteLayout({ children, transparent = false }: { children: ReactNode; transparent?: boolean }) {
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
+  const { data: staffAuth } = useStaffAuth();
+  const isStaff = !!staffAuth?.isStaff;
+  const isAdmin = !!staffAuth?.isAdmin;
+
+  // Discreet keyboard shortcut (Ctrl+Shift+S or Ctrl+Shift+L) for staff/admin to access portal
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "S" || e.key === "s" || e.key === "L" || e.key === "l")) {
+        e.preventDefault();
+        navigate({ to: isStaff ? "/staff" : "/auth" });
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [navigate, isStaff]);
+
   return (
     <div className="min-h-screen flex flex-col">
       <header
@@ -41,6 +59,14 @@ export function SiteLayout({ children, transparent = false }: { children: ReactN
                 {n.label}
               </Link>
             ))}
+            {isStaff && (
+              <Button asChild variant="outline" size="sm" className="border-gold/50 text-gold hover:bg-gold/15">
+                <Link to="/staff" className="flex items-center gap-1.5 text-xs tracking-wider uppercase">
+                  <ShieldCheck className="size-3.5" />
+                  {isAdmin ? "Admin" : "Staff"}
+                </Link>
+              </Button>
+            )}
             <Button asChild variant="luxe" size="sm">
               <Link to="/rooms">Book Now</Link>
             </Button>
@@ -56,6 +82,16 @@ export function SiteLayout({ children, transparent = false }: { children: ReactN
                 {n.label}
               </Link>
             ))}
+            {isStaff && (
+              <Link
+                to="/staff"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 text-sm uppercase tracking-[0.25em] text-gold font-medium"
+              >
+                <ShieldCheck className="size-4" />
+                {isAdmin ? "Admin Portal" : "Staff Portal"}
+              </Link>
+            )}
           </div>
         )}
       </header>
@@ -78,11 +114,23 @@ export function SiteLayout({ children, transparent = false }: { children: ReactN
             {nav.map((n) => (
               <Link key={n.to} to={n.to} className="block opacity-75 hover:text-gold">{n.label}</Link>
             ))}
-            <Link to="/auth" className="block opacity-50 hover:text-gold">Staff login</Link>
+            {isStaff && (
+              <Link to="/staff" className="flex items-center gap-1.5 text-gold hover:underline">
+                <ShieldCheck className="size-3.5" />
+                {isAdmin ? "Admin Portal" : "Staff Portal"}
+              </Link>
+            )}
           </div>
         </div>
         <div className="border-t border-sidebar-border py-5 text-center text-xs opacity-60">
-          © {new Date().getFullYear()} Vaasal Villa Hotel. All rights reserved.
+          <Link
+            to={isStaff ? "/staff" : "/auth"}
+            className="hover:text-gold transition-colors inline-block cursor-default"
+            title="Vaasal Villa"
+          >
+            ©
+          </Link>{" "}
+          {new Date().getFullYear()} Vaasal Villa Hotel. All rights reserved.
         </div>
       </footer>
       <a

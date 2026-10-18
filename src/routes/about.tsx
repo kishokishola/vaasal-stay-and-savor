@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SiteLayout, PageHero } from "@/components/site/SiteLayout";
+import { publicAsset } from "@/lib/hotel";
 
 export const Route = createFileRoute("/about")({
   head: () => ({
@@ -18,7 +19,7 @@ export const Route = createFileRoute("/about")({
 function About() {
   return (
     <SiteLayout>
-      <PageHero eyebrow="Our Story" title="About Vaasal Villa" image="/images/hero.jpg" />
+      <PageHero eyebrow="Our Story" title="About Vaasal Villa" image={publicAsset("/images/hero.jpg")} />
       <section className="mx-auto grid max-w-6xl gap-16 px-6 py-24 md:grid-cols-2 md:items-center">
         <div className="space-y-6 text-muted-foreground leading-relaxed">
           <div className="eyebrow">Vaasal — the doorway</div>
@@ -28,7 +29,7 @@ function About() {
           <p>Located in the heart of Jaffna, Vaasal Villa combines comfort, style and relaxation. Our rooms are thoughtfully furnished, our atmosphere calm, and the essentials — free high-speed WiFi, 24-hour check-in and dedicated guest support — are always taken care of.</p>
           <p>Whether you visit for business, family or leisure, we deliver a memorable stay through premium service and warm hospitality.</p>
         </div>
-        <img src="/images/room-family.jpg" alt="Family room" loading="lazy" className="aspect-[4/5] w-full object-cover shadow-luxe" />
+        <img src={publicAsset("/images/room-family.jpg")} alt="Family room" loading="lazy" className="aspect-[4/5] w-full object-cover shadow-luxe" />
       </section>
     </SiteLayout>
   );

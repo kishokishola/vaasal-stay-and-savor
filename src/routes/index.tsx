@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Shield, Waves, Sparkles, Headphones } from "lucide-react";
 import { SiteLayout } from "@/components/site/SiteLayout";
 import { RoomCard } from "@/components/site/RoomCard";
-import { roomsQuery } from "@/lib/hotel";
+import { publicAsset, roomsQuery } from "@/lib/hotel";
 import { ParallaxImage, Reveal } from "@/components/site/Parallax";
 import { Button } from "@/components/ui/button";
 
@@ -33,7 +33,7 @@ function Home() {
   return (
     <SiteLayout transparent>
       <section className="relative flex h-screen min-h-[640px] items-center overflow-hidden">
-        <ParallaxImage src="/images/hero.jpg" alt="Vaasal Villa at sunset" speed={0.4} eager />
+        <ParallaxImage src={publicAsset("/images/hero.jpg")} alt="Vaasal Villa at sunset" speed={0.4} eager />
         <div className="absolute inset-0 bg-hero-overlay" />
         <div className="relative mx-auto w-full max-w-7xl px-6 text-espresso-foreground">
           <div className="max-w-2xl fade-up">
@@ -71,8 +71,8 @@ function Home() {
           </div>
         </Reveal>
         <Reveal delay={200} className="grid grid-cols-2 gap-4">
-          <img src="/images/room-king.jpg" alt="King suite" loading="lazy" className="aspect-[3/4] w-full object-cover shadow-luxe" />
-          <img src="/images/dining.jpg" alt="Jaffna cuisine" loading="lazy" className="mt-16 aspect-[3/4] w-full object-cover shadow-luxe" />
+          <img src={publicAsset("/images/room-king.jpg")} alt="King suite" loading="lazy" className="aspect-[3/4] w-full object-cover shadow-luxe" />
+          <img src={publicAsset("/images/dining.jpg")} alt="Jaffna cuisine" loading="lazy" className="mt-16 aspect-[3/4] w-full object-cover shadow-luxe" />
         </Reveal>
       </section>
 
@@ -92,7 +92,7 @@ function Home() {
       </section>
 
       <section className="relative overflow-hidden py-32">
-        <ParallaxImage src="/images/dining.jpg" speed={0.3} />
+        <ParallaxImage src={publicAsset("/images/dining.jpg")} speed={0.3} />
         <div className="absolute inset-0 bg-hero-overlay" />
         <div className="relative mx-auto max-w-3xl px-6 text-center text-espresso-foreground">
           <div className="eyebrow text-gold">The Restaurant</div>

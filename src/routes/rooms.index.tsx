@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { SiteLayout, PageHero } from "@/components/site/SiteLayout";
 import { RoomCard } from "@/components/site/RoomCard";
-import { roomsQuery } from "@/lib/hotel";
+import { publicAsset, roomsQuery } from "@/lib/hotel";
 
 export const Route = createFileRoute("/rooms/")({
   head: () => ({
@@ -22,7 +22,7 @@ function Rooms() {
   const { data, isLoading } = useQuery(roomsQuery);
   return (
     <SiteLayout>
-      <PageHero eyebrow="Stay with us" title="Rooms & Suites" image="/images/room-family.jpg" />
+      <PageHero eyebrow="Stay with us" title="Rooms & Suites" image={publicAsset("/images/room-family.jpg")} />
       <section className="mx-auto max-w-7xl px-6 py-24">
         {isLoading && <p className="text-muted-foreground">Loading rooms…</p>}
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">

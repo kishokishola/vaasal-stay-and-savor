@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Users, Bath, Wifi, Snowflake } from "lucide-react";
-import { lkr } from "@/lib/hotel";
+import { lkr, publicAsset } from "@/lib/hotel";
 import type { Tables } from "@/integrations/supabase/types";
 
 export function RoomCard({ room }: { room: Tables<"rooms"> }) {
@@ -12,7 +12,7 @@ export function RoomCard({ room }: { room: Tables<"rooms"> }) {
     >
       <div className="relative aspect-[4/3] overflow-hidden">
         <img
-          src={room.image_url ?? "/images/room-double.jpg"}
+          src={publicAsset(room.image_url ?? "/images/room-double.jpg")}
           alt={room.name}
           loading="lazy"
           className="h-full w-full object-cover transition duration-700 group-hover:scale-105"

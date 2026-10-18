@@ -13,16 +13,29 @@ export function useMyRoles() {
   return useQuery({
     queryKey: ["my-roles", user.id],
     queryFn: async () => {
-      const { data } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
-      return (data ?? []).map((r) => r.role as string);
+      const { data, error } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
+      if (error) throw error;
+      return data.map((r) => r.role);
     },
   });
 }
 
 function StaffLayout() {
-  const { data: roles, isLoading } = useMyRoles();
+  const { data: roles, isLoading, isError, error, refetch } = useMyRoles();
   const loc = useLocation();
   if (isLoading) return <div className="p-10 text-muted-foreground">Loading…</div>;
+  if (isError)
+    return (
+      <div className="flex min-h-screen items-center justify-center p-8 text-center">
+        <div>
+          <h1 className="text-4xl">Could not verify access</h1>
+          <p className="mt-3 text-muted-foreground">{error.message}</p>
+          <button className="mt-4 text-sm text-primary underline" onClick={() => void refetch()}>
+            Try again
+          </button>
+        </div>
+      </div>
+    );
   const isAdmin = !!roles?.includes("admin");
   const isCashier = !!roles?.includes("cashier");
   if (!isAdmin && !isCashier)
@@ -30,7 +43,7 @@ function StaffLayout() {
       <div className="flex min-h-screen items-center justify-center p-8 text-center">
         <div>
           <h1 className="text-4xl">Awaiting access</h1>
-          <p className="mt-3 text-muted-foreground">Ask the hotel owner to add your email as staff.</p>
+          <p className="mt-3 text-muted-foreground">Ask the hotel admin to add your email as staff.</p>
         </div>
       </div>
     );

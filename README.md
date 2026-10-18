@@ -1,26 +1,37 @@
-# Vaasal Stay And Savor
+# Vaasal Villa Hotel
 
-https://hummingbirds.lk/      intha website ah appidiye recreate pannanum new website oda name vaasal villa hotel and https://hummingbirds.lk/ intha website la irukkira hotelbooking system and resturent pos system intha fesilities appidiye venum and UI design laxury ahh venum and fullaa dynamic ahh kudu
+A luxury villa hotel website for Jaffna, with Supabase-powered room bookings, restaurant menu and staff POS.
 
-This project was built with [Lovable](https://lovable.dev).
+## Run locally
 
-**Live app**: https://vaasal-stay-and-savor.lovable.app
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/6fd8081f-b60a-4e29-a6ce-d6c0d4090200).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
-
-## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+Requirements: [Bun](https://bun.sh/) and Node.js 22 or later.
 
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
+bun install --frozen-lockfile
+bun run dev
+```
+
+The app uses the Supabase project configured in `.env`. Do not commit `.env`, a Supabase service-role key, or other private credentials.
+
+## Deploy to GitHub Pages
+
+This repository is configured to deploy as a static single-page app at:
+
+`https://kishokishola.github.io/vaasal-stay-and-savor/`
+
+1. In the GitHub repository, open **Settings → Pages** and set **Build and deployment → Source** to **GitHub Actions**.
+2. Open **Settings → Secrets and variables → Actions → Variables**, and add:
+   - `VITE_SUPABASE_URL` — the Supabase project URL.
+   - `VITE_SUPABASE_PUBLISHABLE_KEY` — the Supabase publishable/anon key. This key is public and is restricted by Supabase Row Level Security; never use a service-role key here.
+3. In Supabase **Authentication → URL Configuration**, set the site URL to `https://kishokishola.github.io/vaasal-stay-and-savor/` and allow the redirect URL `https://kishokishola.github.io/vaasal-stay-and-savor/**`.
+4. Push or merge the changes to the repository's default branch. The **Deploy to GitHub Pages** workflow builds the app and publishes it.
+
+The workflow builds with the repository's GitHub Pages base path, includes a fallback for direct links to app routes, and uses the configured Supabase project for live room, booking, menu and POS data. The first account created in Supabase receives the admin role; the admin can grant staff access from the staff portal.
+
+## Checks
+
+```sh
+bun run lint
+bun run test
+bun run build
 ```

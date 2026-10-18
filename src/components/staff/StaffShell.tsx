@@ -32,7 +32,7 @@ export function StaffShell({ isAdmin, children }: { isAdmin: boolean; children: 
       <aside className="hidden w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground md:flex">
         <Link to="/" className="px-6 py-7">
           <div className="font-display text-2xl">Vaasal Villa</div>
-          <div className="text-[0.6rem] uppercase tracking-[0.4em] text-sidebar-primary">{isAdmin ? "Admin" : "Cashier"}</div>
+          <div className="text-[0.6rem] uppercase tracking-[0.4em] text-sidebar-primary">{isAdmin ? "Admin" : "Staff"}</div>
         </Link>
         <nav className="flex-1 space-y-1 px-3">
           {links.map((l) => (
