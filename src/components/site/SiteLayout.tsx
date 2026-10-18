@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 import { Menu, X, Phone, Mail, MapPin, MessageCircle } from "lucide-react";
 import { HOTEL } from "@/lib/hotel";
 import { Button } from "@/components/ui/button";
+import { ParallaxImage } from "./Parallax";
 
 const nav = [
   { to: "/", label: "Home" },
@@ -100,7 +101,7 @@ export function SiteLayout({ children, transparent = false }: { children: ReactN
 export function PageHero({ eyebrow, title, image }: { eyebrow: string; title: string; image: string }) {
   return (
     <section className="relative flex h-[46vh] min-h-[340px] items-end overflow-hidden">
-      <img src={image} alt="" className="absolute inset-0 h-full w-full object-cover" />
+      <ParallaxImage src={image} speed={0.4} eager />
       <div className="absolute inset-0 bg-hero-overlay" />
       <div className="relative mx-auto w-full max-w-7xl px-6 pb-14 text-espresso-foreground fade-up">
         <div className="eyebrow text-gold">{eyebrow}</div>

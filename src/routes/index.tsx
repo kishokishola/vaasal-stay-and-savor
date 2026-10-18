@@ -4,6 +4,7 @@ import { Shield, Waves, Sparkles, Headphones } from "lucide-react";
 import { SiteLayout } from "@/components/site/SiteLayout";
 import { RoomCard } from "@/components/site/RoomCard";
 import { roomsQuery } from "@/lib/hotel";
+import { ParallaxImage, Reveal } from "@/components/site/Parallax";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/")({
@@ -32,7 +33,7 @@ function Home() {
   return (
     <SiteLayout transparent>
       <section className="relative flex h-screen min-h-[640px] items-center overflow-hidden">
-        <img src="/images/hero.jpg" alt="Vaasal Villa at sunset" width={1920} height={1088} className="absolute inset-0 h-full w-full object-cover" />
+        <ParallaxImage src="/images/hero.jpg" alt="Vaasal Villa at sunset" speed={0.4} eager />
         <div className="absolute inset-0 bg-hero-overlay" />
         <div className="relative mx-auto w-full max-w-7xl px-6 text-espresso-foreground">
           <div className="max-w-2xl fade-up">
@@ -50,7 +51,7 @@ function Home() {
       </section>
 
       <section className="mx-auto grid max-w-7xl gap-16 px-6 py-28 md:grid-cols-2 md:items-center">
-        <div>
+        <Reveal>
           <div className="eyebrow">About Us</div>
           <h2 className="mt-4 text-5xl">Quiet luxury in the heart of Jaffna</h2>
           <div className="gold-rule my-8" />
@@ -68,11 +69,11 @@ function Home() {
               </div>
             ))}
           </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
+        </Reveal>
+        <Reveal delay={200} className="grid grid-cols-2 gap-4">
           <img src="/images/room-king.jpg" alt="King suite" loading="lazy" className="aspect-[3/4] w-full object-cover shadow-luxe" />
           <img src="/images/dining.jpg" alt="Jaffna cuisine" loading="lazy" className="mt-16 aspect-[3/4] w-full object-cover shadow-luxe" />
-        </div>
+        </Reveal>
       </section>
 
       <section className="bg-secondary py-28">
@@ -85,13 +86,13 @@ function Home() {
             <Button asChild variant="outline"><Link to="/rooms">View all rooms</Link></Button>
           </div>
           <div className="mt-14 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {(rooms ?? []).slice(0, 6).map((r) => <RoomCard key={r.id} room={r} />)}
+            {(rooms ?? []).slice(0, 6).map((r, i) => <Reveal key={r.id} delay={(i % 3) * 120}><RoomCard room={r} /></Reveal>)}
           </div>
         </div>
       </section>
 
       <section className="relative overflow-hidden py-32">
-        <img src="/images/dining.jpg" alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+        <ParallaxImage src="/images/dining.jpg" speed={0.3} />
         <div className="absolute inset-0 bg-hero-overlay" />
         <div className="relative mx-auto max-w-3xl px-6 text-center text-espresso-foreground">
           <div className="eyebrow text-gold">The Restaurant</div>
