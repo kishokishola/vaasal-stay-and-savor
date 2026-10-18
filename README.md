@@ -1,14 +1,18 @@
-# Welcome to your Lovable project
+# Vaasal Stay And Savor
+
+https://hummingbirds.lk/      intha website ah appidiye recreate pannanum new website oda name vaasal villa hotel and https://hummingbirds.lk/ intha website la irukkira hotelbooking system and resturent pos system intha fesilities appidiye venum and UI design laxury ahh venum and fullaa dynamic ahh kudu
 
 This project was built with [Lovable](https://lovable.dev).
 
+**Live app**: https://vaasal-stay-and-savor.lovable.app
+
 ## Build with Lovable
 
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
+Continue developing this project in the [Lovable editor](https://lovable.dev/projects/6fd8081f-b60a-4e29-a6ce-d6c0d4090200).
 
 - **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
-- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
+- **Stay in sync**: every change made in Lovable is committed straight to this repository.
+- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
 
 ## Development
 
@@ -20,10 +24,3 @@ cd <repository-name>
 npm i
 npm run dev
 ```
-
-## Built with
-
-- TanStack Start
-- TypeScript
-- React
-- Tailwind CSS
