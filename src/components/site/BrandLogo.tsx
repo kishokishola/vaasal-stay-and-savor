@@ -17,13 +17,13 @@ const sizes = {
     subtitle: "text-[0.58rem] md:text-[0.65rem]",
   },
   auth: {
-    mark: "size-20 md:size-24",
-    name: "text-3xl",
+    mark: "size-16 sm:size-20 md:size-24",
+    name: "text-2xl sm:text-3xl",
     subtitle: "text-[0.65rem]",
   },
   staff: {
-    mark: "size-12",
-    name: "text-xl",
+    mark: "size-14 md:size-16",
+    name: "text-xl md:text-2xl",
     subtitle: "text-[0.55rem]",
   },
 };
