@@ -43,7 +43,11 @@ The migration reads rooms, bookings, menu items, orders/order items and role ass
 
 ## Admin sign-in
 
-Open `/auth` (the **Staff / Admin Login** link in the site header/footer) and sign in with a verified Firebase Authentication email. Legacy Supabase accounts are not automatically usable as Firebase passwords; create a Firebase account or use **Forgot password**. Verification and password-reset emails use Firebase's default action handler rather than a custom continue URL, avoiding unauthorized-continue-URI errors for the GitHub Pages subpath. If Firebase reports `auth/unauthorized-domain`, add the exact website hostname to Firebase Authentication → Settings → Authorized domains. The project owner must bootstrap the first admin in Firestore by creating a `staff_access/{lowercase-email}` document with `email` and `role: "admin"` fields. Publish `firestore.rules` before staff sign-in so role checks and staff operations are allowed. After verifying the email, return to `/auth` to sign in.
+Open `/auth` (the **Staff / Admin Login** link in the site header/footer) and sign in with the Firebase email and password provisioned by the project owner. Public account creation and email-based password-reset/verification links are intentionally not offered on this admin-only page. Legacy Supabase passwords cannot be reused as Firebase passwords.
+
+Firebase Email/Password sign-in does not require email verification and this page never sends verification or password-reset emails. Use the account's email as the username. The project owner must provision accounts and manage forgotten passwords in Firebase Authentication. If Firebase reports `auth/unauthorized-domain`, add the exact website hostname to **Authentication → Settings → Authorized domains**.
+
+The project owner must bootstrap the first admin in Firestore by creating a `staff_access/{lowercase-email}` document with `email` and `role: "admin"` fields. Publish `firestore.rules` before staff sign-in so role checks and staff operations are allowed. The rules retain role-based staff checks and admin-only role assignment; never let users self-assign a role.
 
 Use a trusted local machine with Node.js and private credentials; do not paste credentials into chat or commit them. Set:
 

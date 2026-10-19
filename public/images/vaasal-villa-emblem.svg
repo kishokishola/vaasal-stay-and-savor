@@ -8,37 +8,13 @@
   </defs>
   <circle cx="64" cy="64" r="61" fill="url(#umber)" stroke="#e8c07a" stroke-width="2.5" />
   <circle cx="64" cy="64" r="55" fill="none" stroke="#e8c07a" stroke-opacity=".55" />
-  <text
-    x="64"
-    y="24"
-    fill="#f4d99e"
-    font-family="Georgia,serif"
-    font-size="8.5"
-    font-weight="700"
-    letter-spacing="1.3"
-    text-anchor="middle"
-  >
-    VAASAL VILLA
-  </text>
-  <text
-    x="64"
-    y="108"
-    fill="#f4d99e"
-    font-family="Arial,sans-serif"
-    font-size="7"
-    letter-spacing="1.5"
-    text-anchor="middle"
-  >
-    JAFFNA · HOTEL
-  </text>
   <path
-    d="M43 84h42M48 81V63a16 16 0 0 1 32 0v18M56 81V66a8 8 0 0 1 16 0v15"
+    d="M35 91h58M42 87V62a22 22 0 0 1 44 0v25M53 87V65a11 11 0 0 1 22 0v22"
     fill="none"
     stroke="#f4d99e"
     stroke-linecap="round"
     stroke-linejoin="round"
-    stroke-width="2.6"
+    stroke-width="3"
   />
-  <path d="m64 43 3 5 6 1-4.5 4.3 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L55 49l6-1z" fill="#e8c07a" />
-  <path d="M39 91h50" stroke="#e8c07a" stroke-linecap="round" stroke-opacity=".65" />
+  <path d="m64 31 3.6 7.3 8.1 1.2-5.9 5.7 1.4 8.1-7.2-3.8-7.2 3.8 1.4-8.1-5.9-5.7 8.1-1.2z" fill="#e8c07a" />
 </svg>

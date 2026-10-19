@@ -36,7 +36,11 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 function RoomDetail() {
   const { code } = Route.useParams();
-  const { data: room, isLoading, isError } = useQuery({
+  const {
+    data: room,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["room", code],
     queryFn: () => getPublicRoomByCode(code),
   });
@@ -122,6 +126,11 @@ function RoomDetail() {
         <img
           src={publicAsset(room.image_url ?? "/images/room-double.jpg")}
           alt={room.name}
+          onError={(event) => {
+            const image = event.currentTarget;
+            image.onerror = null;
+            image.src = publicAsset("/images/room-double.jpg");
+          }}
           className="absolute inset-0 h-full w-full object-cover"
         />
         <div className="absolute inset-0 bg-hero-overlay" />

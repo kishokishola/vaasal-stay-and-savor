@@ -1,14 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import {
-  createUserWithEmailAndPassword,
-  onAuthStateChanged,
-  sendEmailVerification,
-  sendPasswordResetEmail,
-  signInWithEmailAndPassword,
-  signOut,
-} from "firebase/auth";
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { auth, isFirebaseConfigured } from "@/integrations/firebase/client";
 import { getStaffAccess } from "@/lib/firebase-data";
 import { Button } from "@/components/ui/button";
@@ -30,9 +23,6 @@ function authErrorMessage(error: unknown) {
   }
   if (code === "auth/unauthorized-domain" || code === "auth/unauthorized-continue-uri") {
     return "Firebase rejected the email action link. In Firebase Console → Authentication → Settings → Authorized domains, make sure vaasal-villa.firebaseapp.com is listed.";
-  }
-  if (code === "auth/email-already-in-use") {
-    return "An account with this email already exists. Sign in or use Forgot password.";
   }
   if (code === "auth/too-many-requests") {
     return "Too many attempts. Wait a few minutes, then try again.";
@@ -60,7 +50,6 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const nav = useNavigate();
-  const [mode, setMode] = useState<"in" | "up">("in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -69,7 +58,7 @@ function AuthPage() {
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (user) => {
-      if (!user?.emailVerified || !user.email) return;
+      if (!user?.email) return;
       try {
         const role = await getStaffAccess(user.email);
         if (role) nav({ to: "/staff", replace: true });
@@ -93,62 +82,27 @@ function AuthPage() {
     setBusy(true);
 
     try {
-      if (mode === "in") {
-        const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
-        if (!credential.user.emailVerified) {
-          try {
-            await sendEmailVerification(credential.user);
-          } finally {
-            await signOut(auth);
-          }
-          toast.error("Please verify your email. A new verification link has been sent.");
-          return;
-        }
-        let role: "admin" | "cashier" | null;
-        try {
-          role = await getStaffAccess(credential.user.email ?? "");
-        } catch (error) {
-          console.error("Could not check staff access after sign-in.", error);
-          await signOut(auth);
-          setAccessMessage(
-            "Sign-in worked, but staff access could not be checked. Ask the site owner to publish Firestore rules.",
-          );
-          return;
-        }
-        if (!role) {
-          await signOut(auth);
-          setAccessMessage(
-            "This account is not assigned to hotel staff yet. Ask the project owner to add your email as an admin or cashier.",
-          );
-          return;
-        }
-        setAccessMessage("");
-        nav({ to: "/staff" });
-      } else {
-        const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
-        await sendEmailVerification(credential.user);
+      const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      let role: "admin" | "cashier" | null;
+      try {
+        role = await getStaffAccess(credential.user.email ?? "");
+      } catch (error) {
+        console.error("Could not check staff access after sign-in.", error);
         await signOut(auth);
-        toast.success(
-          "Account created. Verify your email, then sign in. An admin must grant staff access.",
+        setAccessMessage(
+          "Sign-in worked, but staff access could not be checked. Ask the site owner to publish Firestore rules.",
         );
-        setMode("in");
+        return;
       }
-    } catch (error) {
-      toast.error(authErrorMessage(error));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function resetPassword() {
-    if (!email.trim()) {
-      toast.error("Enter your email address first.");
-      return;
-    }
-    setBusy(true);
-    try {
-      await sendPasswordResetEmail(auth, email.trim());
-      toast.success("Password reset email sent. Check your inbox.");
+      if (!role) {
+        await signOut(auth);
+        setAccessMessage(
+          "This account is not assigned to hotel staff yet. Ask the project owner to add your email as an admin or cashier.",
+        );
+        return;
+      }
+      setAccessMessage("");
+      nav({ to: "/staff" });
     } catch (error) {
       toast.error(authErrorMessage(error));
     } finally {
@@ -197,13 +151,9 @@ function AuthPage() {
           >
             <div>
               <p className="eyebrow">Secure staff portal</p>
-              <h1 className="mt-2 text-4xl">
-                {mode === "in" ? "Welcome back" : "Create your account"}
-              </h1>
+              <h1 className="mt-2 text-4xl">Welcome back</h1>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                {mode === "in"
-                  ? "Sign in with your verified Firebase staff account."
-                  : "Create a Firebase account. An admin must grant staff access before you can enter the portal."}
+                Sign in with your Firebase staff email and password.
               </p>
             </div>
             {accessMessage && (
@@ -241,10 +191,9 @@ function AuthPage() {
               <Input
                 id="staff-password"
                 type="password"
-                autoComplete={mode === "in" ? "current-password" : "new-password"}
-                placeholder="At least 6 characters"
+                autoComplete="current-password"
+                placeholder="Enter your password"
                 required
-                minLength={6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={busy}
@@ -258,30 +207,16 @@ function AuthPage() {
               size="lg"
               disabled={busy || !configured}
             >
-              {busy ? "Please wait…" : mode === "in" ? "Sign in to staff portal" : "Create account"}
+              {busy ? "Please wait…" : "Sign in to staff portal"}
             </Button>
-            <div className="flex flex-col items-start gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-              {mode === "in" && (
-                <button
-                  type="button"
-                  className="inline-flex min-h-11 cursor-pointer items-center rounded px-2 text-sm text-primary transition-colors hover:bg-secondary hover:text-foreground hover:underline hover:underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={() => void resetPassword()}
-                  disabled={busy || !configured}
-                >
-                  Forgot password?
-                </button>
-              )}
-              <button
-                type="button"
-                className="inline-flex min-h-11 cursor-pointer items-center rounded px-2 text-sm font-medium text-primary transition-colors hover:bg-secondary hover:underline hover:underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                onClick={() => setMode(mode === "in" ? "up" : "in")}
-                disabled={busy || !configured}
-              >
-                {mode === "in" ? "No account? Sign up" : "Have an account? Sign in"}
-              </button>
+            <div className="border-t border-border pt-4">
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Staff accounts and password changes are managed by the project owner. This sign-in
+                page does not send verification or password-reset emails.
+              </p>
             </div>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              Admin access is assigned by the project owner using the verified email address.
+              Admin access is assigned by the project owner to your Firebase sign-in email.
             </p>
           </form>
         </div>

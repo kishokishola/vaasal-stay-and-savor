@@ -8,7 +8,6 @@ service cloud.firestore {
     function staff() {
       return signedIn()
         && request.auth.token.email is string
-        && request.auth.token.email_verified == true
         && exists(/databases/$(database)/documents/staff_access/$(request.auth.token.email.lower()));
     }
 
@@ -75,7 +74,6 @@ service cloud.firestore {
     match /staff_access/{email} {
       allow read: if admin()
         || (signedIn()
-          && request.auth.token.email_verified == true
           && request.auth.token.email.lower() == email);
       allow create, update, delete: if admin();
     }
