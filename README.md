@@ -1,37 +1,76 @@
 # Vaasal Villa Hotel
 
-A luxury villa hotel website for Jaffna, with Supabase-powered room bookings, restaurant menu and staff POS.
+Luxury villa hotel website with room booking requests, restaurant menu and a staff-only POS. GitHub Pages hosts the static site; Firebase Authentication and Cloud Firestore provide the dynamic backend. Room photo URLs can remain in Supabase or point to static site assets.
 
 ## Run locally
 
-Requirements: [Bun](https://bun.sh/) and Node.js 22 or later.
+Requirements: Node.js 22 or later and npm.
 
 ```sh
-bun install --frozen-lockfile
-bun run dev
+npm ci
+Copy-Item .env.example .env
+npm run dev
 ```
 
-The app uses the Supabase project configured in `.env`. Do not commit `.env`, a Supabase service-role key, or other private credentials.
+Fill `.env` with the Firebase web app configuration values. In Firebase Console, enable Email/Password in Authentication, create Firestore, and add your local host and `kishokishola.github.io` to Authentication's authorized domains. This Spark Free setup does not use Firebase Storage.
 
-## Deploy to GitHub Pages
+## Firebase and GitHub Pages setup
 
-This repository is configured to deploy as a static single-page app at:
+1. Create a Firebase project and register a Web app. Enable **Authentication → Email/Password** and create a Firestore database. This Spark Free setup does not use Firebase Storage.
+2. Add `kishokishola.github.io` to **Authentication → Settings → Authorized domains**.
+3. Publish the Firestore rules and indexes using the Firebase CLI signed in on your own computer:
 
-`https://kishokishola.github.io/vaasal-stay-and-savor/`
+   ```sh
+   npx firebase-tools login
+   npx firebase-tools deploy --only firestore --project YOUR_FIREBASE_PROJECT_ID
+   ```
 
-1. In the GitHub repository, open **Settings → Pages** and set **Build and deployment → Source** to **GitHub Actions**.
-2. Open **Settings → Secrets and variables → Actions → Variables**, and add:
-   - `VITE_SUPABASE_URL` — the Supabase project URL.
-   - `VITE_SUPABASE_PUBLISHABLE_KEY` — the Supabase publishable/anon key. This key is public and is restricted by Supabase Row Level Security; never use a service-role key here.
-3. In Supabase **Authentication → URL Configuration**, set the site URL to `https://kishokishola.github.io/vaasal-stay-and-savor/` and allow the redirect URL `https://kishokishola.github.io/vaasal-stay-and-savor/**`.
-4. Push or merge the changes to the repository's default branch. The **Deploy to GitHub Pages** workflow builds the app and publishes it.
+4. Copy `.env.example` to `.env` and set the four `VITE_FIREBASE_*` values from the web app configuration. These are public client configuration values, not service credentials.
+5. In GitHub **Settings → Pages**, choose **GitHub Actions** as the build and deployment source. The workflow uses only the public Firebase web-app configuration; it does not need private service-account keys or secrets.
+6. Push to the default branch. The **Deploy to GitHub Pages** workflow builds the static SPA and deploys `dist/client`.
 
-The workflow builds with the repository's GitHub Pages base path, includes a fallback for direct links to app routes, and uses the configured Supabase project for live room, booking, menu and POS data. The first account created in Supabase receives the admin role; the admin can grant staff access from the staff portal.
+The app can instead be deployed to Firebase Hosting locally, without storing deployment credentials in GitHub:
+
+```sh
+npx firebase-tools login
+npm run build
+npx firebase-tools deploy --only hosting --project YOUR_FIREBASE_PROJECT_ID
+```
+
+## Migrate existing Supabase data
+
+The migration reads rooms, bookings, menu items, orders/order items and role assignments from Supabase, preserves each room's existing `image_url`, and provisions Firebase Auth accounts. Room photos remain hosted where their URLs currently point. To add photos, create a **public** bucket in Supabase Storage, upload files from the Supabase dashboard, and paste each public URL into the staff room editor. The app does not grant browser users direct Supabase upload permissions. Existing Supabase passwords cannot be exported or reused; users must use **Forgot password** to set a Firebase password.
+
+Use a trusted local machine with Node.js and private credentials; do not paste credentials into chat or commit them. Set:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY` (never a `VITE_*` variable)
+- `FIREBASE_PROJECT_ID`
+- `GOOGLE_APPLICATION_CREDENTIALS` pointing to a Firebase service-account JSON with Auth and Firestore administration permissions
+
+Install dependencies and do a read-only check first:
+
+```sh
+npm ci
+npm run migrate:supabase -- --dry-run
+```
+
+When the counts and destination project are verified, run:
+
+```sh
+npm run migrate:supabase -- --apply
+```
+
+The migration is additive/upserting: it does not clear Firebase data. Review and resolve overlapping confirmed bookings before migration; the script stops rather than silently choosing one. Assign the initial admin in the source Supabase roles before migrating, or create a `staff_access/{lowercase-email}` document with role `admin` using the Firebase Console or Admin SDK before staff sign-in. Never let an arbitrary user self-assign a role.
+
+## Firestore-only booking limitation
+
+Public booking requests are created directly from the browser and remain **pending** until a staff member confirms them. The confirmation transaction claims per-night lock documents, preventing two confirmations for the same room nights. Because this project deliberately does not use Cloud Functions, Firebase cannot fully protect pricing or booking policy from a malicious browser client. Do not take online payments or treat a client-submitted request as a guaranteed reservation without a trusted server-side booking service.
 
 ## Checks
 
 ```sh
-bun run lint
-bun run test
-bun run build
+npm run lint
+npm test
+npm run build
 ```

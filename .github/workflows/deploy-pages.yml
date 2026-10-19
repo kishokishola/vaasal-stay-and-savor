@@ -22,8 +22,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VITE_BASE_PATH: /${{ github.event.repository.name }}/
-      VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      VITE_FIREBASE_API_KEY: "AIzaSyANjmBDEotl2BTMi_8mJ7cyCc9RK7Y7KXM"
+      VITE_FIREBASE_AUTH_DOMAIN: vaasal-villa.firebaseapp.com
+      VITE_FIREBASE_PROJECT_ID: vaasal-villa
+      VITE_FIREBASE_APP_ID: "1:677358674069:web:cb36a839284e996576fb9c"
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -32,35 +34,26 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+          cache: npm
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Check Supabase configuration
-        run: |
-          if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$VITE_SUPABASE_PUBLISHABLE_KEY" ]; then
-            echo "::error::Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY as repository Actions variables."
-            exit 1
-          fi
+        run: npm ci
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
       - name: Build static site
-        run: bun run build
+        run: npm run build
 
       - name: Add GitHub Pages route fallback
         run: |
-          cp .output/public/index.html .output/public/404.html
-          touch .output/public/.nojekyll
+          cp dist/client/index.html dist/client/404.html
+          touch dist/client/.nojekyll
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .output/public
+          path: dist/client
 
       - name: Deploy GitHub Pages
         id: deployment

@@ -1,7 +1,15 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signOut,
+} from "firebase/auth";
+import { auth, isFirebaseConfigured } from "@/integrations/firebase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +19,10 @@ export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "Staff Login — Vaasal Villa Hotel" },
-      { name: "description", content: "Staff sign-in for Vaasal Villa admin and restaurant billing." },
+      {
+        name: "description",
+        content: "Staff sign-in for Vaasal Villa admin and restaurant billing.",
+      },
       { property: "og:title", content: "Staff Login — Vaasal Villa Hotel" },
       { property: "og:description", content: "Staff sign-in for Vaasal Villa." },
       { property: "og:type", content: "website" },
@@ -28,84 +39,80 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [showResend, setShowResend] = useState(false);
+  const configured = isFirebaseConfigured();
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
-        nav({ to: "/staff", replace: true });
-      }
+    return onAuthStateChanged(auth, (user) => {
+      if (user?.emailVerified) nav({ to: "/staff", replace: true });
     });
   }, [nav]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
-    setShowResend(false);
-
-    if (mode === "in") {
-      const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-      setBusy(false);
-      if (error) {
-        if (error.message.toLowerCase().includes("email not confirmed")) {
-          setShowResend(true);
-        }
-        toast.error(error.message);
-        return;
-      }
-      if (data.session) {
-        nav({ to: "/staff" });
-      }
-    } else {
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: { emailRedirectTo: window.location.origin + import.meta.env.BASE_URL + "staff" },
-      });
-      setBusy(false);
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-      if (data.session) {
-        toast.success("Account created successfully!");
-        nav({ to: "/staff" });
-        return;
-      }
-      if (data.user && data.user.identities && data.user.identities.length === 0) {
-        toast.error("This email is already registered. Please sign in instead.");
-        setMode("in");
-        return;
-      }
-      toast.success("Account created! Check your email to confirm your account, then sign in.");
-      setShowResend(true);
-      setMode("in");
-    }
-  }
-
-  async function handleResend() {
-    if (!email) {
-      toast.error("Please enter your email address first.");
+    if (!configured) {
+      toast.error(
+        "Firebase is not configured yet. Ask the site administrator to finish Firebase setup.",
+      );
       return;
     }
     setBusy(true);
-    const { error } = await supabase.auth.resend({
-      type: "signup",
-      email: email.trim(),
-      options: { emailRedirectTo: window.location.origin + import.meta.env.BASE_URL + "staff" },
-    });
-    setBusy(false);
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("Confirmation email resent. Please check your inbox / spam folder.");
+
+    try {
+      if (mode === "in") {
+        const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+        if (!credential.user.emailVerified) {
+          await sendEmailVerification(credential.user);
+          await signOut(auth);
+          toast.error("Please verify your email. A new verification link has been sent.");
+          return;
+        }
+        nav({ to: "/staff" });
+      } else {
+        const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        await sendEmailVerification(credential.user, {
+          url: window.location.origin + import.meta.env.BASE_URL + "staff",
+        });
+        await signOut(auth);
+        toast.success(
+          "Account created. Verify your email, then sign in. An admin must grant staff access.",
+        );
+        setMode("in");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not complete authentication.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resetPassword() {
+    if (!email.trim()) {
+      toast.error("Enter your email address first.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await sendPasswordResetEmail(auth, email.trim(), {
+        url: window.location.origin + import.meta.env.BASE_URL + "auth",
+      });
+      toast.success("Password reset email sent. Check your inbox.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not send a password reset email.",
+      );
+    } finally {
+      setBusy(false);
     }
   }
 
   return (
     <div className="grid min-h-screen md:grid-cols-2">
       <div className="relative hidden md:block">
-        <img src={publicAsset("/images/hero.jpg")} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        <img
+          src={publicAsset("/images/hero.jpg")}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+        />
         <div className="absolute inset-0 bg-hero-overlay" />
         <div className="absolute bottom-12 left-12 text-espresso-foreground">
           <div className="font-display text-5xl">Vaasal Villa</div>
@@ -114,32 +121,56 @@ function AuthPage() {
       </div>
       <div className="flex items-center justify-center p-8">
         <form onSubmit={submit} className="w-full max-w-sm space-y-5">
-          <Link to="/" className="inline-block text-xs uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground">
+          <Link
+            to="/"
+            className="inline-block text-xs uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground"
+          >
             ← Back to website
           </Link>
           <h1 className="text-4xl">{mode === "in" ? "Staff sign in" : "Create staff account"}</h1>
           <p className="text-sm text-muted-foreground">
-            The first account becomes the owner (admin). After that, an admin must grant staff access to new accounts.
+            Verify your email, then ask an admin to grant staff access.
           </p>
-          <div><Label>Email</Label><Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
-          <div><Label>Password</Label><Input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} /></div>
-          {showResend && (
-            <div className="rounded-md border border-gold/40 bg-gold/5 p-3 text-sm">
-              <p className="text-muted-foreground text-xs">Didn't receive or confirm your email?</p>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={handleResend}
-                className="mt-1 text-xs text-gold underline hover:text-gold/80"
-              >
-                Resend confirmation email
-              </button>
-            </div>
+          {!configured && (
+            <p
+              role="alert"
+              className="rounded border border-destructive/40 p-3 text-sm text-destructive"
+            >
+              Firebase is not configured. Add the Firebase web app settings before signing in.
+            </p>
           )}
+          <div>
+            <Label>Email</Label>
+            <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+          <div>
+            <Label>Password</Label>
+            <Input
+              type="password"
+              required
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
           <Button type="submit" variant="luxe" className="w-full" size="lg" disabled={busy}>
             {busy ? "Please wait…" : mode === "in" ? "Sign in" : "Sign up"}
           </Button>
-          <button type="button" className="text-sm text-primary" onClick={() => { setMode(mode === "in" ? "up" : "in"); setShowResend(false); }}>
+          {mode === "in" && (
+            <button
+              type="button"
+              className="block text-sm text-primary"
+              onClick={() => void resetPassword()}
+              disabled={busy}
+            >
+              Forgot password?
+            </button>
+          )}
+          <button
+            type="button"
+            className="text-sm text-primary"
+            onClick={() => setMode(mode === "in" ? "up" : "in")}
+          >
             {mode === "in" ? "No account? Sign up" : "Have an account? Sign in"}
           </button>
         </form>

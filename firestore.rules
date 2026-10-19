@@ -1,0 +1,83 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function staff() {
+      return signedIn()
+        && request.auth.token.email is string
+        && request.auth.token.email_verified == true
+        && exists(/databases/$(database)/documents/staff_access/$(request.auth.token.email.lower()));
+    }
+
+    function admin() {
+      return staff()
+        && get(/databases/$(database)/documents/staff_access/$(request.auth.token.email.lower())).data.role == "admin";
+    }
+
+    match /rooms/{roomId} {
+      allow read: if true;
+      allow create, update, delete: if admin();
+    }
+
+    match /menu_items/{itemId} {
+      allow read: if true;
+      allow create, update, delete: if admin();
+    }
+
+    match /bookings/{bookingId} {
+      allow create: if request.resource.data.keys().hasOnly([
+          "room_id", "guest_name", "guest_email", "guest_phone", "check_in",
+          "check_out", "guests", "notes", "total", "status", "created_at"
+        ])
+        && request.resource.data.status == "pending"
+        && request.resource.data.room_id is string
+        && exists(/databases/$(database)/documents/rooms/$(request.resource.data.room_id))
+        && get(/databases/$(database)/documents/rooms/$(request.resource.data.room_id)).data.active == true
+        && request.resource.data.guest_name is string
+        && request.resource.data.guest_name.size() > 0
+        && request.resource.data.guest_name.size() <= 120
+        && request.resource.data.guest_email is string
+        && request.resource.data.guest_email.size() <= 254
+        && request.resource.data.guest_phone is string
+        && request.resource.data.guest_phone.size() <= 40
+        && request.resource.data.check_in is string
+        && request.resource.data.check_in.matches("^\\d{4}-\\d{2}-\\d{2}$")
+        && request.resource.data.check_out is string
+        && request.resource.data.check_out.matches("^\\d{4}-\\d{2}-\\d{2}$")
+        && request.resource.data.check_out > request.resource.data.check_in
+        && request.resource.data.guests is int
+        && request.resource.data.guests > 0
+        && request.resource.data.guests <= get(/databases/$(database)/documents/rooms/$(request.resource.data.room_id)).data.capacity
+        && request.resource.data.total is number
+        && request.resource.data.total >= 0
+        && (request.resource.data.notes == null || request.resource.data.notes is string)
+        && request.resource.data.created_at is string;
+      allow read, update, delete: if staff();
+    }
+
+    match /room_night_locks/{lockId} {
+      allow read: if true;
+      allow write: if staff();
+    }
+
+    match /orders/{orderId} {
+      allow read, create: if staff();
+      allow update, delete: if admin();
+    }
+
+    match /counters/{counterId} {
+      allow read, write: if staff() && counterId == "orders";
+    }
+
+    match /staff_access/{email} {
+      allow read: if admin()
+        || (signedIn()
+          && request.auth.token.email_verified == true
+          && request.auth.token.email.lower() == email);
+      allow create, update, delete: if admin();
+    }
+  }
+}

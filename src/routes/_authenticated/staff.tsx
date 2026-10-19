@@ -1,22 +1,20 @@
 import { createFileRoute, Outlet, useLocation, Navigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { StaffShell } from "@/components/staff/StaffShell";
+import { getStaffAccess } from "@/lib/firebase-data";
 
 export const Route = createFileRoute("/_authenticated/staff")({
-  head: () => ({ meta: [{ title: "Staff — Vaasal Villa" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({
+    meta: [{ title: "Staff — Vaasal Villa" }, { name: "robots", content: "noindex" }],
+  }),
   component: StaffLayout,
 });
 
 export function useMyRoles() {
   const { user } = Route.useRouteContext();
   return useQuery({
-    queryKey: ["my-roles", user.id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
-      if (error) throw error;
-      return data.map((r) => r.role);
-    },
+    queryKey: ["my-roles", user.uid],
+    queryFn: async () => (user.email ? getStaffAccess(user.email) : null),
   });
 }
 
@@ -36,18 +34,21 @@ function StaffLayout() {
         </div>
       </div>
     );
-  const isAdmin = !!roles?.includes("admin");
-  const isCashier = !!roles?.includes("cashier");
+  const isAdmin = roles === "admin";
+  const isCashier = roles === "cashier";
   if (!isAdmin && !isCashier)
     return (
       <div className="flex min-h-screen items-center justify-center p-8 text-center">
         <div>
           <h1 className="text-4xl">Awaiting access</h1>
-          <p className="mt-3 text-muted-foreground">Ask the hotel admin to add your email as staff.</p>
+          <p className="mt-3 text-muted-foreground">
+            Ask the hotel admin to add your email as staff.
+          </p>
         </div>
       </div>
     );
-  const cashierAllowed = loc.pathname.startsWith("/staff/pos") || loc.pathname.startsWith("/staff/orders");
+  const cashierAllowed =
+    loc.pathname.startsWith("/staff/pos") || loc.pathname.startsWith("/staff/orders");
   if (!isAdmin && !cashierAllowed) return <Navigate to="/staff/pos" />;
   return (
     <StaffShell isAdmin={isAdmin}>

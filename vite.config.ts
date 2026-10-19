@@ -22,7 +22,5 @@ export default defineConfig({
       },
     },
   },
-  nitro: {
-    preset: "github-pages",
-  },
+  nitro: false,
 });
