@@ -43,7 +43,7 @@ The migration reads rooms, bookings, menu items, orders/order items and role ass
 
 ## Admin sign-in
 
-Open `/auth` (the **Staff / Admin Login** link in the site header/footer) and sign in with a verified Firebase Authentication email. Legacy Supabase accounts are not automatically usable as Firebase passwords; create a Firebase account or use **Forgot password**. The project owner must bootstrap the first admin in Firestore by creating a `staff_access/{lowercase-email}` document with `email` and `role: "admin"` fields. Add the production site's hostname (`kishokishola.github.io`) to Firebase Authentication's authorised domains. Publish `firestore.rules` before staff sign-in so role checks and staff operations are allowed.
+Open `/auth` (the **Staff / Admin Login** link in the site header/footer) and sign in with a verified Firebase Authentication email. Legacy Supabase accounts are not automatically usable as Firebase passwords; create a Firebase account or use **Forgot password**. Verification and password-reset emails use Firebase's default action handler rather than a custom continue URL, avoiding unauthorized-continue-URI errors for the GitHub Pages subpath. If Firebase reports `auth/unauthorized-domain`, add the exact website hostname to Firebase Authentication → Settings → Authorized domains. The project owner must bootstrap the first admin in Firestore by creating a `staff_access/{lowercase-email}` document with `email` and `role: "admin"` fields. Publish `firestore.rules` before staff sign-in so role checks and staff operations are allowed. After verifying the email, return to `/auth` to sign in.
 
 Use a trusted local machine with Node.js and private credentials; do not paste credentials into chat or commit them. Set:
 

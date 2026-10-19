@@ -17,6 +17,29 @@ import { Label } from "@/components/ui/label";
 import { publicAsset } from "@/lib/hotel";
 import { BrandLogo } from "@/components/site/BrandLogo";
 
+function authErrorMessage(error: unknown) {
+  const code =
+    error && typeof error === "object" && "code" in error && typeof error.code === "string"
+      ? error.code
+      : "";
+  if (code === "auth/invalid-credential" || code === "auth/user-not-found") {
+    return "Email or password is incorrect. If this is an old Supabase staff account, create or reset its Firebase password first.";
+  }
+  if (code === "auth/operation-not-allowed") {
+    return "Email/password sign-in is disabled. Enable it in Firebase Authentication settings.";
+  }
+  if (code === "auth/unauthorized-domain" || code === "auth/unauthorized-continue-uri") {
+    return "Firebase rejected the email action link. In Firebase Console → Authentication → Settings → Authorized domains, make sure vaasal-villa.firebaseapp.com is listed.";
+  }
+  if (code === "auth/email-already-in-use") {
+    return "An account with this email already exists. Sign in or use Forgot password.";
+  }
+  if (code === "auth/too-many-requests") {
+    return "Too many attempts. Wait a few minutes, then try again.";
+  }
+  return error instanceof Error ? error.message : "Could not complete authentication.";
+}
+
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
@@ -73,8 +96,11 @@ function AuthPage() {
       if (mode === "in") {
         const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
         if (!credential.user.emailVerified) {
-          await sendEmailVerification(credential.user);
-          await signOut(auth);
+          try {
+            await sendEmailVerification(credential.user);
+          } finally {
+            await signOut(auth);
+          }
           toast.error("Please verify your email. A new verification link has been sent.");
           return;
         }
@@ -100,9 +126,7 @@ function AuthPage() {
         nav({ to: "/staff" });
       } else {
         const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
-        await sendEmailVerification(credential.user, {
-          url: window.location.origin + import.meta.env.BASE_URL + "staff",
-        });
+        await sendEmailVerification(credential.user);
         await signOut(auth);
         toast.success(
           "Account created. Verify your email, then sign in. An admin must grant staff access.",
@@ -114,26 +138,6 @@ function AuthPage() {
     } finally {
       setBusy(false);
     }
-
-    function authErrorMessage(error: unknown) {
-      const code =
-        error && typeof error === "object" && "code" in error && typeof error.code === "string"
-          ? error.code
-          : "";
-      if (code === "auth/invalid-credential" || code === "auth/user-not-found") {
-        return "Email or password is incorrect. If this is an old Supabase staff account, create or reset its Firebase password first.";
-      }
-      if (code === "auth/operation-not-allowed") {
-        return "Email/password sign-in is disabled. Enable it in Firebase Authentication settings.";
-      }
-      if (code === "auth/unauthorized-domain") {
-        return "This website domain is not authorized in Firebase Authentication. Add kishokishola.github.io to Authorized domains.";
-      }
-      if (code === "auth/email-already-in-use") {
-        return "An account with this email already exists. Sign in or use Forgot password.";
-      }
-      return error instanceof Error ? error.message : "Could not complete authentication.";
-    }
   }
 
   async function resetPassword() {
@@ -143,102 +147,144 @@ function AuthPage() {
     }
     setBusy(true);
     try {
-      await sendPasswordResetEmail(auth, email.trim(), {
-        url: window.location.origin + import.meta.env.BASE_URL + "auth",
-      });
+      await sendPasswordResetEmail(auth, email.trim());
       toast.success("Password reset email sent. Check your inbox.");
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Could not send a password reset email.",
-      );
+      toast.error(authErrorMessage(error));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="grid min-h-screen md:grid-cols-2">
-      <div className="relative hidden md:block">
+    <div className="grid min-h-screen bg-background md:grid-cols-2">
+      <div className="relative hidden min-h-screen overflow-hidden md:block">
         <img
           src={publicAsset("/images/hero.jpg")}
           alt=""
           className="absolute inset-0 h-full w-full object-cover"
         />
         <div className="absolute inset-0 bg-hero-overlay" />
-        <div className="absolute bottom-12 left-12 text-espresso-foreground">
+        <div className="absolute left-8 top-8 lg:left-12 lg:top-12">
           <BrandLogo size="auth" subtitle="Staff portal" />
         </div>
+        <div className="absolute bottom-12 left-8 right-8 text-espresso-foreground lg:left-12">
+          <p className="eyebrow text-gold">Vaasal Villa · Jaffna</p>
+          <p className="mt-3 max-w-lg font-display text-3xl leading-snug lg:text-4xl">
+            Warm hospitality, thoughtfully managed.
+          </p>
+          <p className="mt-3 max-w-md text-sm leading-relaxed text-espresso-foreground/80">
+            Secure staff access for hotel operations and restaurant billing.
+          </p>
+        </div>
       </div>
-      <div className="flex items-center justify-center p-8">
-        <form onSubmit={submit} className="w-full max-w-sm space-y-5">
-          <div className="md:hidden">
-            <BrandLogo size="auth" />
+      <div className="flex min-h-screen items-center justify-center px-5 py-8 sm:px-8 md:px-10 lg:px-16">
+        <div className="w-full max-w-md">
+          <div className="mb-7 flex items-center justify-between gap-4">
+            <div className="md:hidden">
+              <BrandLogo size="auth" />
+            </div>
+            <Link
+              to="/"
+              className="ml-auto inline-flex min-h-11 items-center rounded px-3 text-xs uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              ← Back to website
+            </Link>
           </div>
-          <Link
-            to="/"
-            className="inline-block text-xs uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground"
+          <form
+            onSubmit={submit}
+            className="space-y-6 rounded-sm border border-border/80 bg-card p-6 shadow-luxe sm:p-8 md:border-0 md:bg-transparent md:p-0 md:shadow-none"
           >
-            ← Back to website
-          </Link>
-          <h1 className="text-4xl">{mode === "in" ? "Staff sign in" : "Create staff account"}</h1>
-          <p className="text-sm text-muted-foreground">
-            Sign in with your verified Firebase staff account. Admin access requires an admin role.
-          </p>
-          <p className="text-xs text-muted-foreground">
-            First admin setup: the Firebase project owner must create a Firestore staff_access/
-            {email.toLowerCase() || "your-email"} document with role "admin".
-          </p>
-          {accessMessage && (
-            <p
-              role="alert"
-              className="rounded border border-destructive/40 p-3 text-sm text-destructive"
+            <div>
+              <p className="eyebrow">Secure staff portal</p>
+              <h1 className="mt-2 text-4xl">
+                {mode === "in" ? "Welcome back" : "Create your account"}
+              </h1>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                {mode === "in"
+                  ? "Sign in with your verified Firebase staff account."
+                  : "Create a Firebase account. An admin must grant staff access before you can enter the portal."}
+              </p>
+            </div>
+            {accessMessage && (
+              <p
+                role="alert"
+                className="rounded-sm border border-destructive/40 bg-destructive/5 p-3 text-sm leading-relaxed text-destructive"
+              >
+                {accessMessage}
+              </p>
+            )}
+            {!configured && (
+              <p
+                role="alert"
+                className="rounded-sm border border-destructive/40 bg-destructive/5 p-3 text-sm leading-relaxed text-destructive"
+              >
+                Firebase is not configured. Add the Firebase web app settings before signing in.
+              </p>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="staff-email">Email address</Label>
+              <Input
+                id="staff-email"
+                type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={busy}
+                className="h-12 bg-background"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="staff-password">Password</Label>
+              <Input
+                id="staff-password"
+                type="password"
+                autoComplete={mode === "in" ? "current-password" : "new-password"}
+                placeholder="At least 6 characters"
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={busy}
+                className="h-12 bg-background"
+              />
+            </div>
+            <Button
+              type="submit"
+              variant="luxe"
+              className="h-12 w-full"
+              size="lg"
+              disabled={busy || !configured}
             >
-              {accessMessage}
+              {busy ? "Please wait…" : mode === "in" ? "Sign in to staff portal" : "Create account"}
+            </Button>
+            <div className="flex flex-col items-start gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              {mode === "in" && (
+                <button
+                  type="button"
+                  className="inline-flex min-h-11 cursor-pointer items-center rounded px-2 text-sm text-primary transition-colors hover:bg-secondary hover:text-foreground hover:underline hover:underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => void resetPassword()}
+                  disabled={busy || !configured}
+                >
+                  Forgot password?
+                </button>
+              )}
+              <button
+                type="button"
+                className="inline-flex min-h-11 cursor-pointer items-center rounded px-2 text-sm font-medium text-primary transition-colors hover:bg-secondary hover:underline hover:underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => setMode(mode === "in" ? "up" : "in")}
+                disabled={busy || !configured}
+              >
+                {mode === "in" ? "No account? Sign up" : "Have an account? Sign in"}
+              </button>
+            </div>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Admin access is assigned by the project owner using the verified email address.
             </p>
-          )}
-          {!configured && (
-            <p
-              role="alert"
-              className="rounded border border-destructive/40 p-3 text-sm text-destructive"
-            >
-              Firebase is not configured. Add the Firebase web app settings before signing in.
-            </p>
-          )}
-          <div>
-            <Label>Email</Label>
-            <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
-          <div>
-            <Label>Password</Label>
-            <Input
-              type="password"
-              required
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-          <Button type="submit" variant="luxe" className="w-full" size="lg" disabled={busy}>
-            {busy ? "Please wait…" : mode === "in" ? "Sign in" : "Sign up"}
-          </Button>
-          {mode === "in" && (
-            <button
-              type="button"
-              className="block text-sm text-primary"
-              onClick={() => void resetPassword()}
-              disabled={busy}
-            >
-              Forgot password?
-            </button>
-          )}
-          <button
-            type="button"
-            className="text-sm text-primary"
-            onClick={() => setMode(mode === "in" ? "up" : "in")}
-          >
-            {mode === "in" ? "No account? Sign up" : "Have an account? Sign in"}
-          </button>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
   );
