@@ -29,7 +29,7 @@ const features = [
 ];
 
 function Home() {
-  const { data: rooms } = useQuery(roomsQuery);
+  const { data: rooms, isLoading, isError } = useQuery(roomsQuery);
   return (
     <SiteLayout transparent>
       <section className="relative flex h-screen min-h-[640px] items-center overflow-hidden">
@@ -88,6 +88,15 @@ function Home() {
           <div className="mt-14 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
             {(rooms ?? []).slice(0, 6).map((r, i) => <Reveal key={r.id} delay={(i % 3) * 120}><RoomCard room={r} /></Reveal>)}
           </div>
+          {isLoading && <p className="mt-8 text-muted-foreground">Loading available rooms…</p>}
+          {isError && (
+            <p role="alert" className="mt-8 text-destructive">
+              Room details could not be loaded. Please try again later.
+            </p>
+          )}
+          {!isLoading && !isError && !rooms?.length && (
+            <p className="mt-8 text-muted-foreground">No rooms are currently available to display.</p>
+          )}
         </div>
       </section>
 

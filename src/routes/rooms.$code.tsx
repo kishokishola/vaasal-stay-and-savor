@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Users, Bath, Wifi, Snowflake, CheckCircle2 } from "lucide-react";
-import { createBooking, getBookedRanges, getRoomByCode } from "@/lib/firebase-data";
+import { createBooking, getBookedRanges } from "@/lib/firebase-data";
+import { getPublicRoomByCode } from "@/lib/public-catalog";
 import { SiteLayout } from "@/components/site/SiteLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,9 +36,9 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 function RoomDetail() {
   const { code } = Route.useParams();
-  const { data: room, isLoading } = useQuery({
+  const { data: room, isLoading, isError } = useQuery({
     queryKey: ["room", code],
-    queryFn: () => getRoomByCode(code),
+    queryFn: () => getPublicRoomByCode(code),
   });
   const { data: booked } = useQuery({
     enabled: !!room,
@@ -67,7 +68,12 @@ function RoomDetail() {
     return (
       <SiteLayout>
         <div className="p-24 text-center">
-          <h1 className="text-4xl">Room not found</h1>
+          <h1 className="text-4xl">{isError ? "Room details unavailable" : "Room not found"}</h1>
+          {isError && (
+            <p role="alert" className="mt-3 text-muted-foreground">
+              We could not load this room. Please try again later.
+            </p>
+          )}
           <Link to="/rooms" className="mt-4 inline-block text-primary">
             Back to rooms
           </Link>

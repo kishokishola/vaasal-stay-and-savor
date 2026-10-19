@@ -26,6 +26,8 @@ jobs:
       VITE_FIREBASE_AUTH_DOMAIN: vaasal-villa.firebaseapp.com
       VITE_FIREBASE_PROJECT_ID: vaasal-villa
       VITE_FIREBASE_APP_ID: "1:677358674069:web:cb36a839284e996576fb9c"
+      VITE_SUPABASE_URL: "https://c--6fd8081f-b60a-4e29-a6ce-d6c0d4090200-prod.lovable.cloud"
+      VITE_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_ZQmdGzVnO5yu6bfhT1S5RA_UTz08dBQ"
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

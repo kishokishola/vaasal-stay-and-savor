@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { getMenuItems } from "@/lib/firebase-data";
+import { getPublicMenuItems } from "@/lib/public-catalog";
 import { SiteLayout, PageHero } from "@/components/site/SiteLayout";
 import { lkr, publicAsset } from "@/lib/hotel";
 
@@ -23,9 +23,9 @@ export const Route = createFileRoute("/dining")({
 });
 
 function Dining() {
-  const { data } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["menu-public"],
-    queryFn: () => getMenuItems(true),
+    queryFn: getPublicMenuItems,
   });
   const groups = (data ?? []).reduce<Record<string, typeof data>>((acc, m) => {
     (acc[m.category] ||= [] as never).push(m);
@@ -39,6 +39,15 @@ function Dining() {
         image={publicAsset("/images/dining.jpg")}
       />
       <section className="mx-auto max-w-5xl px-6 py-24">
+        {isLoading && <p className="text-muted-foreground">Loading restaurant menu…</p>}
+        {isError && (
+          <p role="alert" className="text-destructive">
+            The restaurant menu could not be loaded. Please try again later.
+          </p>
+        )}
+        {!isLoading && !isError && !data?.length && (
+          <p className="text-muted-foreground">Our menu is being updated. Please check back soon.</p>
+        )}
         <div className="grid gap-16 md:grid-cols-2">
           {Object.entries(groups).map(([cat, items]) => (
             <div key={cat}>

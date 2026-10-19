@@ -30,5 +30,5 @@ export function orderTotals(subtotal: number, discount: number, servicePct: numb
 
 export const roomsQuery = {
   queryKey: ["rooms"],
-  queryFn: () => import("@/lib/firebase-data").then(({ getRooms }) => getRooms(true)),
+  queryFn: () => import("@/lib/public-catalog").then(({ getPublicRooms }) => getPublicRooms()),
 };

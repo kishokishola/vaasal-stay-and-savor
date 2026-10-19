@@ -10,6 +10,7 @@ import {
   signOut,
 } from "firebase/auth";
 import { auth, isFirebaseConfigured } from "@/integrations/firebase/client";
+import { getStaffAccess } from "@/lib/firebase-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,11 +40,21 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [accessMessage, setAccessMessage] = useState("");
   const configured = isFirebaseConfigured();
 
   useEffect(() => {
-    return onAuthStateChanged(auth, (user) => {
-      if (user?.emailVerified) nav({ to: "/staff", replace: true });
+    return onAuthStateChanged(auth, async (user) => {
+      if (!user?.emailVerified || !user.email) return;
+      try {
+        const role = await getStaffAccess(user.email);
+        if (role) nav({ to: "/staff", replace: true });
+      } catch (error) {
+        console.error("Could not check staff access after sign-in.", error);
+        setAccessMessage(
+          "Sign-in worked, but staff access could not be checked. Ask the site owner to publish Firestore rules.",
+        );
+      }
     });
   }, [nav]);
 
@@ -66,6 +77,25 @@ function AuthPage() {
           toast.error("Please verify your email. A new verification link has been sent.");
           return;
         }
+        let role: "admin" | "cashier" | null;
+        try {
+          role = await getStaffAccess(credential.user.email ?? "");
+        } catch (error) {
+          console.error("Could not check staff access after sign-in.", error);
+          await signOut(auth);
+          setAccessMessage(
+            "Sign-in worked, but staff access could not be checked. Ask the site owner to publish Firestore rules.",
+          );
+          return;
+        }
+        if (!role) {
+          await signOut(auth);
+          setAccessMessage(
+            "This account is not assigned to hotel staff yet. Ask the project owner to add your email as an admin or cashier.",
+          );
+          return;
+        }
+        setAccessMessage("");
         nav({ to: "/staff" });
       } else {
         const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
@@ -79,9 +109,29 @@ function AuthPage() {
         setMode("in");
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not complete authentication.");
+      toast.error(authErrorMessage(error));
     } finally {
       setBusy(false);
+    }
+
+    function authErrorMessage(error: unknown) {
+      const code =
+        error && typeof error === "object" && "code" in error && typeof error.code === "string"
+          ? error.code
+          : "";
+      if (code === "auth/invalid-credential" || code === "auth/user-not-found") {
+        return "Email or password is incorrect. If this is an old Supabase staff account, create or reset its Firebase password first.";
+      }
+      if (code === "auth/operation-not-allowed") {
+        return "Email/password sign-in is disabled. Enable it in Firebase Authentication settings.";
+      }
+      if (code === "auth/unauthorized-domain") {
+        return "This website domain is not authorized in Firebase Authentication. Add kishokishola.github.io to Authorized domains.";
+      }
+      if (code === "auth/email-already-in-use") {
+        return "An account with this email already exists. Sign in or use Forgot password.";
+      }
+      return error instanceof Error ? error.message : "Could not complete authentication.";
     }
   }
 
@@ -129,8 +179,17 @@ function AuthPage() {
           </Link>
           <h1 className="text-4xl">{mode === "in" ? "Staff sign in" : "Create staff account"}</h1>
           <p className="text-sm text-muted-foreground">
-            Verify your email, then ask an admin to grant staff access.
+            Sign in with your verified Firebase staff account. Admin access requires an admin role.
           </p>
+          <p className="text-xs text-muted-foreground">
+            First admin setup: the Firebase project owner must create a Firestore
+            {" "}staff_access/{email.toLowerCase() || "your-email"} document with role "admin".
+          </p>
+          {accessMessage && (
+            <p role="alert" className="rounded border border-destructive/40 p-3 text-sm text-destructive">
+              {accessMessage}
+            </p>
+          )}
           {!configured && (
             <p
               role="alert"

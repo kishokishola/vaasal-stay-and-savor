@@ -1,6 +1,6 @@
 # Vaasal Villa Hotel
 
-Luxury villa hotel website with room booking requests, restaurant menu and a staff-only POS. GitHub Pages hosts the static site; Firebase Authentication and Cloud Firestore provide the dynamic backend. Room photo URLs can remain in Supabase or point to static site assets.
+Luxury villa hotel website with room booking requests, restaurant menu and a staff-only POS. GitHub Pages hosts the static site; Firebase Authentication and Cloud Firestore provide the backend, with the existing Supabase rooms and menu used as a live public-catalogue fallback until Firestore data is migrated.
 
 ## Run locally
 
@@ -26,7 +26,7 @@ Fill `.env` with the Firebase web app configuration values. In Firebase Console,
    ```
 
 4. Copy `.env.example` to `.env` and set the four `VITE_FIREBASE_*` values from the web app configuration. These are public client configuration values, not service credentials.
-5. In GitHub **Settings → Pages**, choose **GitHub Actions** as the build and deployment source. The workflow uses only the public Firebase web-app configuration; it does not need private service-account keys or secrets.
+5. In GitHub **Settings → Pages**, choose **GitHub Actions** as the build and deployment source. The workflow uses public Firebase and Supabase client configuration; it does not need private service-account keys or secrets.
 6. Push to the default branch. The **Deploy to GitHub Pages** workflow builds the static SPA and deploys `dist/client`.
 
 The app can instead be deployed to Firebase Hosting locally, without storing deployment credentials in GitHub:
@@ -39,7 +39,11 @@ npx firebase-tools deploy --only hosting --project YOUR_FIREBASE_PROJECT_ID
 
 ## Migrate existing Supabase data
 
-The migration reads rooms, bookings, menu items, orders/order items and role assignments from Supabase, preserves each room's existing `image_url`, and provisions Firebase Auth accounts. Room photos remain hosted where their URLs currently point. To add photos, create a **public** bucket in Supabase Storage, upload files from the Supabase dashboard, and paste each public URL into the staff room editor. The app does not grant browser users direct Supabase upload permissions. Existing Supabase passwords cannot be exported or reused; users must use **Forgot password** to set a Firebase password.
+The migration reads rooms, bookings, menu items, orders/order items and role assignments from Supabase, preserves each room's existing `image_url`, and provisions Firebase Auth accounts. Existing room and menu data are read live from Supabase on the public pages when the Firebase catalogue is empty or unavailable. Room photos remain hosted where their URLs currently point. To add photos, create a **public** bucket in Supabase Storage, upload files from the Supabase dashboard, and paste each public URL into the staff room editor. The app does not grant browser users direct Supabase upload permissions. Existing Supabase passwords cannot be exported or reused; users must reset their Firebase password.
+
+## Admin sign-in
+
+Open `/auth` (the **Staff / Admin Login** link in the site header/footer) and sign in with a verified Firebase Authentication email. Legacy Supabase accounts are not automatically usable as Firebase passwords; create a Firebase account or use **Forgot password**. The project owner must bootstrap the first admin in Firestore by creating a `staff_access/{lowercase-email}` document with `email` and `role: "admin"` fields. Add the production site's hostname (`kishokishola.github.io`) to Firebase Authentication's authorised domains. Publish `firestore.rules` before staff sign-in so role checks and staff operations are allowed.
 
 Use a trusted local machine with Node.js and private credentials; do not paste credentials into chat or commit them. Set:
 

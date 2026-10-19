@@ -59,6 +59,12 @@ export function SiteLayout({ children, transparent = false }: { children: ReactN
                 {n.label}
               </Link>
             ))}
+            <Link
+              to="/auth"
+              className="text-xs uppercase tracking-[0.2em] text-gold transition hover:opacity-100 opacity-85"
+            >
+              Staff / Admin Login
+            </Link>
             {isStaff && (
               <Button asChild variant="outline" size="sm" className="border-gold/50 text-gold hover:bg-gold/15">
                 <Link to="/staff" className="flex items-center gap-1.5 text-xs tracking-wider uppercase">
@@ -82,6 +88,13 @@ export function SiteLayout({ children, transparent = false }: { children: ReactN
                 {n.label}
               </Link>
             ))}
+            <Link
+              to="/auth"
+              onClick={() => setOpen(false)}
+              className="text-sm uppercase tracking-[0.2em] text-gold"
+            >
+              Staff / Admin Login
+            </Link>
             {isStaff && (
               <Link
                 to="/staff"
@@ -114,6 +127,9 @@ export function SiteLayout({ children, transparent = false }: { children: ReactN
             {nav.map((n) => (
               <Link key={n.to} to={n.to} className="block opacity-75 hover:text-gold">{n.label}</Link>
             ))}
+            <Link to="/auth" className="block text-gold hover:underline">
+              Staff / Admin Login
+            </Link>
             {isStaff && (
               <Link to="/staff" className="flex items-center gap-1.5 text-gold hover:underline">
                 <ShieldCheck className="size-3.5" />
