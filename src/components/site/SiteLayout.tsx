@@ -4,6 +4,7 @@ import { Menu, X, Phone, Mail, MapPin, MessageCircle, ShieldCheck } from "lucide
 import { HOTEL } from "@/lib/hotel";
 import { Button } from "@/components/ui/button";
 import { ParallaxImage } from "./Parallax";
+import { BrandLogo } from "./BrandLogo";
 import { useStaffAuth } from "@/hooks/useStaffAuth";
 
 const nav = [
@@ -14,7 +15,13 @@ const nav = [
   { to: "/contact", label: "Contact" },
 ] as const;
 
-export function SiteLayout({ children, transparent = false }: { children: ReactNode; transparent?: boolean }) {
+export function SiteLayout({
+  children,
+  transparent = false,
+}: {
+  children: ReactNode;
+  transparent?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const { data: staffAuth } = useStaffAuth();
@@ -24,7 +31,11 @@ export function SiteLayout({ children, transparent = false }: { children: ReactN
   // Discreet keyboard shortcut (Ctrl+Shift+S or Ctrl+Shift+L) for staff/admin to access portal
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "S" || e.key === "s" || e.key === "L" || e.key === "l")) {
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        e.shiftKey &&
+        (e.key === "S" || e.key === "s" || e.key === "L" || e.key === "l")
+      ) {
         e.preventDefault();
         navigate({ to: isStaff ? "/staff" : "/auth" });
       }
@@ -43,9 +54,8 @@ export function SiteLayout({ children, transparent = false }: { children: ReactN
         }
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-          <Link to="/" className="flex flex-col leading-none">
-            <span className="font-display text-2xl">Vaasal Villa</span>
-            <span className="text-[0.6rem] uppercase tracking-[0.4em] text-gold">Jaffna · Hotel</span>
+          <Link to="/" aria-label="Vaasal Villa Hotel home">
+            <BrandLogo />
           </Link>
           <nav className="hidden items-center gap-8 md:flex">
             {nav.map((n) => (
@@ -66,8 +76,16 @@ export function SiteLayout({ children, transparent = false }: { children: ReactN
               Staff / Admin Login
             </Link>
             {isStaff && (
-              <Button asChild variant="outline" size="sm" className="border-gold/50 text-gold hover:bg-gold/15">
-                <Link to="/staff" className="flex items-center gap-1.5 text-xs tracking-wider uppercase">
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="border-gold/50 text-gold hover:bg-gold/15"
+              >
+                <Link
+                  to="/staff"
+                  className="flex items-center gap-1.5 text-xs tracking-wider uppercase"
+                >
                   <ShieldCheck className="size-3.5" />
                   {isAdmin ? "Admin" : "Staff"}
                 </Link>
@@ -84,7 +102,12 @@ export function SiteLayout({ children, transparent = false }: { children: ReactN
         {open && (
           <div className="flex flex-col gap-4 bg-espresso px-6 pb-6 md:hidden">
             {nav.map((n) => (
-              <Link key={n.to} to={n.to} onClick={() => setOpen(false)} className="text-sm uppercase tracking-[0.25em]">
+              <Link
+                key={n.to}
+                to={n.to}
+                onClick={() => setOpen(false)}
+                className="text-sm uppercase tracking-[0.25em]"
+              >
                 {n.label}
               </Link>
             ))}
@@ -112,20 +135,33 @@ export function SiteLayout({ children, transparent = false }: { children: ReactN
       <footer className="bg-espresso text-espresso-foreground">
         <div className="mx-auto grid max-w-7xl gap-10 px-6 py-16 md:grid-cols-3">
           <div>
-            <div className="font-display text-3xl">Vaasal Villa</div>
+            <Link to="/" aria-label="Vaasal Villa Hotel home" className="inline-flex">
+              <BrandLogo size="footer" />
+            </Link>
             <div className="gold-rule my-4" />
             <p className="text-sm opacity-75">{HOTEL.tagline}. Warm hospitality, quiet luxury.</p>
           </div>
           <div className="space-y-3 text-sm opacity-85">
             <div className="eyebrow mb-4">Reach us</div>
-            <p className="flex gap-2"><MapPin className="size-4 text-gold" />{HOTEL.address}</p>
-            <p className="flex gap-2"><Phone className="size-4 text-gold" />{HOTEL.phone}</p>
-            <p className="flex gap-2"><Mail className="size-4 text-gold" />{HOTEL.email}</p>
+            <p className="flex gap-2">
+              <MapPin className="size-4 text-gold" />
+              {HOTEL.address}
+            </p>
+            <p className="flex gap-2">
+              <Phone className="size-4 text-gold" />
+              {HOTEL.phone}
+            </p>
+            <p className="flex gap-2">
+              <Mail className="size-4 text-gold" />
+              {HOTEL.email}
+            </p>
           </div>
           <div className="space-y-3 text-sm">
             <div className="eyebrow mb-4">Explore</div>
             {nav.map((n) => (
-              <Link key={n.to} to={n.to} className="block opacity-75 hover:text-gold">{n.label}</Link>
+              <Link key={n.to} to={n.to} className="block opacity-75 hover:text-gold">
+                {n.label}
+              </Link>
             ))}
             <Link to="/auth" className="block text-gold hover:underline">
               Staff / Admin Login
@@ -162,7 +198,15 @@ export function SiteLayout({ children, transparent = false }: { children: ReactN
   );
 }
 
-export function PageHero({ eyebrow, title, image }: { eyebrow: string; title: string; image: string }) {
+export function PageHero({
+  eyebrow,
+  title,
+  image,
+}: {
+  eyebrow: string;
+  title: string;
+  image: string;
+}) {
   return (
     <section className="relative flex h-[46vh] min-h-[340px] items-end overflow-hidden">
       <ParallaxImage src={image} speed={0.4} eager />

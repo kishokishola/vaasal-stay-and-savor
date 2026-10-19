@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/integrations/firebase/client";
+import { BrandLogo } from "@/components/site/BrandLogo";
 
 export function StaffShell({ isAdmin, children }: { isAdmin: boolean; children: ReactNode }) {
   const qc = useQueryClient();
@@ -41,10 +42,7 @@ export function StaffShell({ isAdmin, children }: { isAdmin: boolean; children: 
     <div className="flex min-h-screen">
       <aside className="hidden w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground md:flex">
         <Link to="/" className="px-6 py-7">
-          <div className="font-display text-2xl">Vaasal Villa</div>
-          <div className="text-[0.6rem] uppercase tracking-[0.4em] text-sidebar-primary">
-            {isAdmin ? "Admin" : "Staff"}
-          </div>
+          <BrandLogo size="staff" subtitle={isAdmin ? "Admin portal" : "Staff portal"} />
         </Link>
         <nav className="flex-1 space-y-1 px-3">
           {links.map((l) => (
@@ -68,6 +66,12 @@ export function StaffShell({ isAdmin, children }: { isAdmin: boolean; children: 
         </button>
       </aside>
       <div className="flex-1 overflow-x-hidden">
+        <Link
+          to="/"
+          className="flex items-center border-b border-sidebar-border bg-sidebar px-4 py-3 text-sidebar-foreground md:hidden"
+        >
+          <BrandLogo size="staff" subtitle={isAdmin ? "Admin portal" : "Staff portal"} />
+        </Link>
         <div className="flex gap-2 overflow-x-auto bg-sidebar p-3 text-sidebar-foreground md:hidden">
           {links.map((l) => (
             <Link

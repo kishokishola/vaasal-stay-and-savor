@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, useLocation, Navigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { StaffShell } from "@/components/staff/StaffShell";
+import { BrandLogo } from "@/components/site/BrandLogo";
 import { getStaffAccess } from "@/lib/firebase-data";
 
 export const Route = createFileRoute("/_authenticated/staff")({
@@ -21,11 +22,20 @@ export function useMyRoles() {
 function StaffLayout() {
   const { data: roles, isLoading, isError, error, refetch } = useMyRoles();
   const loc = useLocation();
-  if (isLoading) return <div className="p-10 text-muted-foreground">Loading…</div>;
+  if (isLoading)
+    return (
+      <div className="flex min-h-screen items-center justify-center p-8">
+        <div className="space-y-6 text-center">
+          <BrandLogo size="auth" subtitle="Staff portal" />
+          <p className="text-muted-foreground">Loading your staff access…</p>
+        </div>
+      </div>
+    );
   if (isError)
     return (
       <div className="flex min-h-screen items-center justify-center p-8 text-center">
-        <div>
+        <div className="space-y-5">
+          <BrandLogo size="auth" subtitle="Staff portal" />
           <h1 className="text-4xl">Could not verify access</h1>
           <p className="mt-3 text-muted-foreground">{error.message}</p>
           <button className="mt-4 text-sm text-primary underline" onClick={() => void refetch()}>
@@ -39,7 +49,8 @@ function StaffLayout() {
   if (!isAdmin && !isCashier)
     return (
       <div className="flex min-h-screen items-center justify-center p-8 text-center">
-        <div>
+        <div className="space-y-5">
+          <BrandLogo size="auth" subtitle="Staff portal" />
           <h1 className="text-4xl">Awaiting access</h1>
           <p className="mt-3 text-muted-foreground">
             Ask the hotel admin to add your email as staff.

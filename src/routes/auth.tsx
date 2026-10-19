@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { publicAsset } from "@/lib/hotel";
+import { BrandLogo } from "@/components/site/BrandLogo";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -165,12 +166,14 @@ function AuthPage() {
         />
         <div className="absolute inset-0 bg-hero-overlay" />
         <div className="absolute bottom-12 left-12 text-espresso-foreground">
-          <div className="font-display text-5xl">Vaasal Villa</div>
-          <div className="eyebrow mt-2 text-gold">Staff Portal</div>
+          <BrandLogo size="auth" subtitle="Staff portal" />
         </div>
       </div>
       <div className="flex items-center justify-center p-8">
         <form onSubmit={submit} className="w-full max-w-sm space-y-5">
+          <div className="md:hidden">
+            <BrandLogo size="auth" />
+          </div>
           <Link
             to="/"
             className="inline-block text-xs uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground"
@@ -182,11 +185,14 @@ function AuthPage() {
             Sign in with your verified Firebase staff account. Admin access requires an admin role.
           </p>
           <p className="text-xs text-muted-foreground">
-            First admin setup: the Firebase project owner must create a Firestore
-            {" "}staff_access/{email.toLowerCase() || "your-email"} document with role "admin".
+            First admin setup: the Firebase project owner must create a Firestore staff_access/
+            {email.toLowerCase() || "your-email"} document with role "admin".
           </p>
           {accessMessage && (
-            <p role="alert" className="rounded border border-destructive/40 p-3 text-sm text-destructive">
+            <p
+              role="alert"
+              className="rounded border border-destructive/40 p-3 text-sm text-destructive"
+            >
               {accessMessage}
             </p>
           )}
