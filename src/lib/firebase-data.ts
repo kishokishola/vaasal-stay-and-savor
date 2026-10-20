@@ -4,6 +4,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   orderBy,
   query,
   runTransaction,
@@ -11,10 +12,12 @@ import {
   updateDoc,
   where,
   type DocumentData,
+  type Unsubscribe,
 } from "firebase/firestore";
 import { signInAnonymously } from "firebase/auth";
 import type { Tables } from "@/integrations/supabase/types";
 import { auth, db, requireFirebaseConfig } from "@/integrations/firebase/client";
+import { hotelToday } from "@/lib/dates";
 
 export type Room = Tables<"rooms">;
 export type MenuItem = Tables<"menu_items"> & {
@@ -72,11 +75,11 @@ function dateRange(checkIn: string, checkOut: string) {
 
 export async function getRooms(activeOnly = false) {
   requireFirebaseConfig();
-  const constraints = activeOnly
-    ? [where("active", "==", true), orderBy("code")]
-    : [orderBy("code")];
-  const result = await getDocs(query(coll("rooms"), ...constraints));
-  return result.docs.map((item) => withId<Room>(item.id, item.data() as Room));
+  const result = await getDocs(coll("rooms"));
+  return result.docs
+    .map((item) => withId<Room>(item.id, item.data() as Room))
+    .filter((room) => !activeOnly || room.active)
+    .sort((a, b) => a.code.localeCompare(b.code));
 }
 
 export async function saveRoom(room: Room) {
@@ -102,30 +105,103 @@ export async function deleteRoom(id: string) {
 
 export async function getRoomByCode(code: string) {
   requireFirebaseConfig();
-  const rooms = await getDocs(
-    query(coll("rooms"), where("code", "==", code), where("active", "==", true)),
-  );
-  const roomDoc = rooms.docs[0];
+  const rooms = await getDocs(query(coll("rooms"), where("code", "==", code)));
+  const roomDoc = rooms.docs.find((item) => item.data()["active"] === true);
   return roomDoc ? withId<Room>(roomDoc.id, roomDoc.data() as Room) : null;
 }
 
 export async function getBookedRanges(roomId: string) {
   requireFirebaseConfig();
-  const today = new Date().toISOString().slice(0, 10);
-  const result = await getDocs(
-    query(
-      coll("room_night_locks"),
-      where("room_id", "==", roomId),
-      where("date", ">=", today),
-      orderBy("date"),
-    ),
+  const today = hotelToday();
+  const result = await getDocs(query(coll("room_night_locks"), where("room_id", "==", roomId)));
+  return result.docs
+    .map((item) => item.data()["date"] as string)
+    .filter((date) => date >= today)
+    .sort()
+    .map((date) => {
+      const next = new Date(`${date}T00:00:00.000Z`);
+      next.setUTCDate(next.getUTCDate() + 1);
+      return { check_in: date, check_out: next.toISOString().slice(0, 10) };
+    });
+}
+
+export async function getReservedRoomIds(date: string) {
+  requireFirebaseConfig();
+  const result = await getDocs(query(coll("room_night_locks"), where("date", "==", date)));
+  return [...new Set(result.docs.map((item) => item.data()["room_id"] as string))];
+}
+
+type ChangeListener = (onChange: () => void, onError: (error: Error) => void) => Unsubscribe;
+
+function subscribeToCollection(
+  name: string,
+  onChange: () => void,
+  onError: (error: Error) => void,
+) {
+  requireFirebaseConfig();
+  let isInitialSnapshot = true;
+  return onSnapshot(
+    coll(name),
+    () => {
+      if (isInitialSnapshot) {
+        isInitialSnapshot = false;
+        return;
+      }
+      onChange();
+    },
+    onError,
   );
-  return result.docs.map((item) => {
-    const date = item.data()["date"] as string;
-    const next = new Date(`${date}T00:00:00.000Z`);
-    next.setUTCDate(next.getUTCDate() + 1);
-    return { check_in: date, check_out: next.toISOString().slice(0, 10) };
-  });
+}
+
+export const subscribeToRooms: ChangeListener = (onChange, onError) =>
+  subscribeToCollection("rooms", onChange, onError);
+export const subscribeToMenuItems: ChangeListener = (onChange, onError) =>
+  subscribeToCollection("menu_items", onChange, onError);
+export const subscribeToBookings: ChangeListener = (onChange, onError) =>
+  subscribeToCollection("bookings", onChange, onError);
+export const subscribeToOrders: ChangeListener = (onChange, onError) =>
+  subscribeToCollection("orders", onChange, onError);
+export const subscribeToCustomerOrderRequests: ChangeListener = (onChange, onError) =>
+  subscribeToCollection("customer_order_requests", onChange, onError);
+
+export function subscribeToRoomLocks(
+  roomId: string,
+  onChange: () => void,
+  onError: (error: Error) => void,
+) {
+  requireFirebaseConfig();
+  let isInitialSnapshot = true;
+  return onSnapshot(
+    query(coll("room_night_locks"), where("room_id", "==", roomId)),
+    () => {
+      if (isInitialSnapshot) {
+        isInitialSnapshot = false;
+        return;
+      }
+      onChange();
+    },
+    onError,
+  );
+}
+
+export function subscribeToDateLocks(
+  date: string,
+  onChange: () => void,
+  onError: (error: Error) => void,
+) {
+  requireFirebaseConfig();
+  let isInitialSnapshot = true;
+  return onSnapshot(
+    query(coll("room_night_locks"), where("date", "==", date)),
+    () => {
+      if (isInitialSnapshot) {
+        isInitialSnapshot = false;
+        return;
+      }
+      onChange();
+    },
+    onError,
+  );
 }
 
 export async function createBooking(input: {
@@ -143,17 +219,24 @@ export async function createBooking(input: {
   if (input.guests < 1 || input.guests > input.room.capacity)
     throw new Error("Guest count exceeds room capacity.");
   const bookingRef = doc(coll("bookings"));
+  const matchingRooms = await getDocs(query(coll("rooms"), where("code", "==", input.room.code)));
+  const roomReference = matchingRooms.docs.find((room) => room.data()["active"] === true)?.ref;
+  if (!roomReference && matchingRooms.empty)
+    throw new Error("This room is not set up for online booking yet. Please contact the hotel.");
+  if (!roomReference) throw new Error("This room is no longer available.");
   await runTransaction(db, async (transaction) => {
-    const roomSnapshot = await transaction.get(refFor("rooms", input.room.id));
+    const roomSnapshot = await transaction.get(roomReference);
     if (!roomSnapshot.exists() || roomSnapshot.data()["active"] !== true)
       throw new Error("This room is no longer available.");
     const locks = await Promise.all(
-      nights.map((date) => transaction.get(refFor("room_night_locks", `${input.room.id}_${date}`))),
+      nights.map((date) =>
+        transaction.get(refFor("room_night_locks", `${roomSnapshot.id}_${date}`)),
+      ),
     );
     if (locks.some((lock) => lock.exists())) throw new Error("Those dates are already booked.");
     const room = roomSnapshot.data() as Room;
     transaction.set(bookingRef, {
-      room_id: input.room.id,
+      room_id: roomSnapshot.id,
       guest_name: input.guest_name.trim(),
       guest_email: input.guest_email.trim(),
       guest_phone: input.guest_phone.trim(),

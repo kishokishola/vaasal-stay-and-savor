@@ -3,7 +3,13 @@ import { Users, Bath, Wifi, Snowflake } from "lucide-react";
 import { lkr, publicAsset } from "@/lib/hotel";
 import type { Tables } from "@/integrations/supabase/types";
 
-export function RoomCard({ room }: { room: Tables<"rooms"> }) {
+export function RoomCard({
+  room,
+  availability,
+}: {
+  room: Tables<"rooms">;
+  availability?: "Available today" | "Reserved today" | undefined;
+}) {
   return (
     <Link
       to="/rooms/$code"
@@ -25,6 +31,11 @@ export function RoomCard({ room }: { room: Tables<"rooms"> }) {
         <div className="absolute left-4 top-4 bg-espresso/85 px-3 py-1 text-xs tracking-widest text-gold">
           {room.code}
         </div>
+        {availability && (
+          <div className="absolute right-4 top-4 bg-espresso/85 px-3 py-1 text-xs tracking-wider text-gold">
+            {availability}
+          </div>
+        )}
       </div>
       <div className="p-6">
         <h3 className="text-2xl">{room.name}</h3>

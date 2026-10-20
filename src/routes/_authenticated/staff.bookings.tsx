@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { getBookings, updateBookingStatus } from "@/lib/firebase-data";
+import { getBookings, subscribeToBookings, updateBookingStatus } from "@/lib/firebase-data";
+import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -46,6 +47,7 @@ function Bookings() {
     queryKey: ["bookings", filter],
     queryFn: () => getBookings(filter === "all" ? undefined : filter),
   });
+  useFirestoreRealtime(["bookings", filter], subscribeToBookings);
   async function setStatus(id: string, status: string) {
     try {
       await updateBookingStatus(id, status);

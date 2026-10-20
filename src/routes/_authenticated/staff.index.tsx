@@ -1,19 +1,45 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { getBookings, getOrders } from "@/lib/firebase-data";
+import {
+  getBookings,
+  getOrders,
+  getReservedRoomIds,
+  getRooms,
+  subscribeToBookings,
+  subscribeToDateLocks,
+  subscribeToOrders,
+  subscribeToRooms,
+} from "@/lib/firebase-data";
 import { lkr } from "@/lib/hotel";
+import { hotelDayBounds, hotelToday } from "@/lib/dates";
+import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
 
 export const Route = createFileRoute("/_authenticated/staff/")({
   component: Overview,
 });
 
 function Overview() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = hotelToday();
+  const bounds = hotelDayBounds(today);
+  const overviewKey = ["overview", today];
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["overview", today],
+    queryKey: overviewKey,
     queryFn: async () => {
-      const [bookings, orders] = await Promise.all([getBookings(), getOrders()]);
-      const todaysOrders = orders.filter((order) => order.created_at.startsWith(today));
+      const [bookings, orders, rooms, reservedRoomIds] = await Promise.all([
+        getBookings(),
+        getOrders(),
+        getRooms(true),
+        getReservedRoomIds(today),
+      ]);
+      const todaysOrders = orders.filter(
+        (order) => order.created_at >= bounds.start && order.created_at < bounds.end,
+      );
+      const paidOrders = todaysOrders.filter(
+        (order) =>
+          order.payment_status === "paid" ||
+          order.payment_method === "room_bill" ||
+          (!order.payment_status && order.status !== "pending"),
+      );
       return {
         bookings,
         pending: bookings.filter((booking) => booking.status === "pending").length,
@@ -23,15 +49,25 @@ function Overview() {
         inHouse: bookings
           .filter((booking) => booking.status === "checked_in")
           .reduce((guests, booking) => guests + Number(booking.guests), 0),
-        sales: todaysOrders.reduce((sum, order) => sum + Number(order.total), 0),
-        orderCount: todaysOrders.length,
+        availableRooms: rooms.filter((room) => !reservedRoomIds.includes(room.id)).length,
+        sales: paidOrders
+          .filter((order) => order.status !== "cancelled")
+          .reduce((sum, order) => sum + Number(order.total), 0),
+        orderCount: paidOrders.filter((order) => order.status !== "cancelled").length,
       };
     },
   });
+  useFirestoreRealtime(overviewKey, subscribeToBookings);
+  useFirestoreRealtime(overviewKey, subscribeToOrders);
+  useFirestoreRealtime(overviewKey, subscribeToRooms);
+  useFirestoreRealtime(overviewKey, (onChange, onError) =>
+    subscribeToDateLocks(today, onChange, onError),
+  );
   const cards = [
     { l: "Pending requests", v: data?.pending ?? "–", to: "/staff/bookings" },
     { l: "Arrivals today", v: data?.arrivals ?? "–", to: "/staff/bookings" },
     { l: "Guests in house", v: data?.inHouse ?? "–", to: "/staff/bookings" },
+    { l: "Rooms available today", v: data?.availableRooms ?? "–", to: "/staff/rooms" },
     {
       l: `Restaurant today (${data?.orderCount ?? 0} bills)`,
       v: data ? lkr(data.sales) : "–",
@@ -95,7 +131,7 @@ function Overview() {
           </button>
         </div>
       )}
-      <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-5">
         {cards.map((c) => (
           <Link
             key={c.l}

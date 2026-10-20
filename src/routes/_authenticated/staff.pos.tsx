@@ -3,8 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Minus, Plus, Trash2, Printer, Search } from "lucide-react";
-import { placeOrder } from "@/lib/firebase-data";
+import { placeOrder, subscribeToMenuItems } from "@/lib/firebase-data";
 import { getPublicMenuItems } from "@/lib/public-catalog";
+import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,6 +52,7 @@ function Pos() {
     queryKey: ["menu"],
     queryFn: getPublicMenuItems,
   });
+  useFirestoreRealtime(["menu"], subscribeToMenuItems);
   const [cat, setCat] = useState("All");
   const [q, setQ] = useState("");
   const [cart, setCart] = useState<Line[]>([]);

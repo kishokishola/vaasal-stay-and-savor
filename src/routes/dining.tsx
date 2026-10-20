@@ -8,6 +8,8 @@ import { SiteLayout, PageHero } from "@/components/site/SiteLayout";
 import { lkr, publicAsset } from "@/lib/hotel";
 import type { CustomerOrderRequest, MenuItem } from "@/lib/firebase-data";
 import { createCustomerOrderRequest } from "@/lib/firebase-data";
+import { subscribeToMenuItems } from "@/lib/firebase-data";
+import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,6 +46,7 @@ function Dining() {
     queryKey: ["menu-public"],
     queryFn: getPublicMenuItems,
   });
+  useFirestoreRealtime(["menu-public"], subscribeToMenuItems);
   const [cart, setCart] = useState<DiningLine[]>([]);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");

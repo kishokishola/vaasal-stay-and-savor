@@ -4,7 +4,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
-import { deleteRoom, getRooms, saveRoom } from "@/lib/firebase-data";
+import { deleteRoom, getRooms, saveRoom, subscribeToRooms } from "@/lib/firebase-data";
+import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +39,7 @@ function RoomsAdmin() {
     queryKey: ["admin-rooms"],
     queryFn: () => getRooms(),
   });
+  useFirestoreRealtime(["admin-rooms"], subscribeToRooms);
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["admin-rooms"] });
     qc.invalidateQueries({ queryKey: ["rooms"] });

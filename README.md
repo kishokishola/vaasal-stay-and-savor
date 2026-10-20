@@ -29,6 +29,8 @@ Fill `.env` with the Firebase web app configuration values. In Firebase Console,
 5. In GitHub **Settings → Pages**, choose **GitHub Actions** as the build and deployment source. The workflow uses public Firebase and Supabase client configuration; it does not need private service-account keys or secrets.
 6. Push to the default branch. The **Deploy to GitHub Pages** workflow builds the static SPA and deploys `dist/client`.
 
+Room and menu edits, booking status, today's room availability, customer orders, and POS sales use Firestore realtime listeners so open pages update without a manual refresh. Publish the rules and enable Anonymous Authentication before accepting public food-order requests.
+
 The app can instead be deployed to Firebase Hosting locally, without storing deployment credentials in GitHub:
 
 ```sh

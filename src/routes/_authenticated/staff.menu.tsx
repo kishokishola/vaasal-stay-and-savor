@@ -8,9 +8,11 @@ import {
   deleteMenuItem,
   getMenuItems,
   seedMenuItems,
+  subscribeToMenuItems,
   updateMenuItem,
 } from "@/lib/firebase-data";
 import { getPublicMenuItems } from "@/lib/public-catalog";
+import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -40,6 +42,7 @@ function MenuAdmin() {
     queryKey: ["menu"],
     queryFn: getPublicMenuItems,
   });
+  useFirestoreRealtime(["menu"], subscribeToMenuItems);
   const refresh = () => qc.invalidateQueries({ queryKey: ["menu"] });
 
   async function prepareMenuForWrite() {

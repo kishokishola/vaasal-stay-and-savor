@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { nightsBetween, orderTotals, publicAsset } from "@/lib/hotel";
+import { hotelDayBounds, hotelToday } from "@/lib/dates";
 
 describe("hotel rules", () => {
   it("counts nights between check-in and check-out", () => {
@@ -25,5 +26,12 @@ describe("hotel rules", () => {
   it("resolves site assets beneath the configured deployment base path", () => {
     expect(publicAsset("/images/room.jpg")).toBe(`${import.meta.env.BASE_URL}images/room.jpg`);
     expect(publicAsset("https://example.com/room.jpg")).toBe("https://example.com/room.jpg");
+  });
+  it("uses Sri Lanka local dates for availability and daily reports", () => {
+    expect(hotelToday(new Date("2026-10-19T20:00:00.000Z"))).toBe("2026-10-20");
+    expect(hotelDayBounds("2026-10-20")).toEqual({
+      start: "2026-10-19T18:30:00.000Z",
+      end: "2026-10-20T18:30:00.000Z",
+    });
   });
 });

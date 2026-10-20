@@ -5,9 +5,13 @@ import { toast } from "sonner";
 import {
   getCustomerOrderRequests,
   getOrders,
+  subscribeToCustomerOrderRequests,
+  subscribeToOrders,
   updateCustomerOrderRequestStatus,
   updateOrderStatus,
 } from "@/lib/firebase-data";
+import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
+import { hotelDayBounds, hotelToday } from "@/lib/dates";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -33,11 +37,16 @@ export const Route = createFileRoute("/_authenticated/staff/orders")({
 
 function Orders() {
   const qc = useQueryClient();
-  const [day, setDay] = useState(new Date().toISOString().slice(0, 10));
+  const [day, setDay] = useState(hotelToday());
+  const bounds = hotelDayBounds(day);
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["orders", day],
-    queryFn: async () => (await getOrders()).filter((order) => order.created_at.startsWith(day)),
+    queryFn: async () =>
+      (await getOrders()).filter(
+        (order) => order.created_at >= bounds.start && order.created_at < bounds.end,
+      ),
   });
+  useFirestoreRealtime(["orders", day], subscribeToOrders);
   const {
     data: requests,
     isLoading: requestsLoading,
@@ -46,8 +55,11 @@ function Orders() {
   } = useQuery({
     queryKey: ["customer-order-requests", day],
     queryFn: async () =>
-      (await getCustomerOrderRequests()).filter((request) => request.created_at.startsWith(day)),
+      (await getCustomerOrderRequests()).filter(
+        (request) => request.created_at >= bounds.start && request.created_at < bounds.end,
+      ),
   });
+  useFirestoreRealtime(["customer-order-requests", day], subscribeToCustomerOrderRequests);
   const paidOrders = (data ?? []).filter(
     (order) =>
       order.payment_status === "paid" ||

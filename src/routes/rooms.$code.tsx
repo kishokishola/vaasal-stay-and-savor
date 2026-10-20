@@ -3,8 +3,15 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Users, Bath, Wifi, Snowflake, CheckCircle2 } from "lucide-react";
-import { createBooking, getBookedRanges } from "@/lib/firebase-data";
+import {
+  createBooking,
+  getBookedRanges,
+  subscribeToRoomLocks,
+  subscribeToRooms,
+} from "@/lib/firebase-data";
 import { getPublicRoomByCode } from "@/lib/public-catalog";
+import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
+import { hotelToday } from "@/lib/dates";
 import { SiteLayout } from "@/components/site/SiteLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,8 +39,6 @@ export const Route = createFileRoute("/rooms/$code")({
   component: RoomDetail,
 });
 
-const today = () => new Date().toISOString().slice(0, 10);
-
 function RoomDetail() {
   const { code } = Route.useParams();
   const {
@@ -44,11 +49,18 @@ function RoomDetail() {
     queryKey: ["room", code],
     queryFn: () => getPublicRoomByCode(code),
   });
+  useFirestoreRealtime(["room", code], subscribeToRooms);
   const { data: booked } = useQuery({
     enabled: !!room,
     queryKey: ["booked", room?.id],
     queryFn: () => getBookedRanges(room!.id),
   });
+  useFirestoreRealtime(
+    ["booked", room?.id],
+    (onChange, onError) =>
+      room ? subscribeToRoomLocks(room.id, onChange, onError) : () => undefined,
+    !!room,
+  );
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -197,7 +209,7 @@ function RoomDetail() {
                   <Input
                     type="date"
                     required
-                    min={today()}
+                    min={hotelToday()}
                     value={form.in}
                     onChange={(e) => setForm({ ...form, in: e.target.value })}
                   />
@@ -207,7 +219,7 @@ function RoomDetail() {
                   <Input
                     type="date"
                     required
-                    min={form.in || today()}
+                    min={form.in || hotelToday()}
                     value={form.out}
                     onChange={(e) => setForm({ ...form, out: e.target.value })}
                   />

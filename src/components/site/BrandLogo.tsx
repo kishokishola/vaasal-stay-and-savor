@@ -34,7 +34,7 @@ export function BrandLogo({ size = "header", subtitle = "Jaffna · Hotel" }: Bra
   return (
     <span className="inline-flex min-w-0 items-center gap-3">
       <img
-        src={publicAsset("/images/vaasal-villa-emblem.svg")}
+        src={publicAsset("/images/vaasal-villa-monogram.svg")}
         alt=""
         className={`${style.mark} shrink-0 drop-shadow-[0_4px_12px_rgba(0,0,0,0.22)]`}
       />
