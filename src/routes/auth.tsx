@@ -1,7 +1,12 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import {
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signOut,
+} from "firebase/auth";
 import { auth, isFirebaseConfigured } from "@/integrations/firebase/client";
 import { getStaffAccess } from "@/lib/firebase-data";
 import { Button } from "@/components/ui/button";
@@ -16,7 +21,7 @@ function authErrorMessage(error: unknown) {
       ? error.code
       : "";
   if (code === "auth/invalid-credential" || code === "auth/user-not-found") {
-    return "Email or password is incorrect. If this is an old Supabase staff account, create or reset its Firebase password first.";
+    return "Email or password is incorrect. If this is an old Supabase staff account, use the password-reset link to set a Firebase password.";
   }
   if (code === "auth/operation-not-allowed") {
     return "Email/password sign-in is disabled. Enable it in Firebase Authentication settings.";
@@ -103,6 +108,23 @@ function AuthPage() {
       }
       setAccessMessage("");
       nav({ to: "/staff" });
+    } catch (error) {
+      toast.error(authErrorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resetPassword() {
+    const address = email.trim();
+    if (!address) {
+      toast.error("Enter your staff email address first.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await sendPasswordResetEmail(auth, address);
+      toast.success("If this is a staff account, Firebase has sent a password-reset link.");
     } catch (error) {
       toast.error(authErrorMessage(error));
     } finally {
@@ -209,10 +231,19 @@ function AuthPage() {
             >
               {busy ? "Please wait…" : "Sign in to staff portal"}
             </Button>
+            <button
+              type="button"
+              className="min-h-11 cursor-pointer rounded px-2 text-sm text-primary transition-colors hover:bg-secondary hover:underline hover:underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => void resetPassword()}
+              disabled={busy || !configured}
+            >
+              Forgot password? Send a reset link
+            </button>
             <div className="border-t border-border pt-4">
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Staff accounts and password changes are managed by the project owner. This sign-in
-                page does not send verification or password-reset emails.
+                Staff accounts are created by the hotel administrator. Email verification is not
+                required. If reset email delivery fails, ask the administrator to set a new password
+                in Firebase Console.
               </p>
             </div>
             <p className="text-xs leading-relaxed text-muted-foreground">

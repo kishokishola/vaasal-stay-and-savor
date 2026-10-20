@@ -1,5 +1,5 @@
-import { Link, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect, type ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
+import { useState, type ReactNode } from "react";
 import { Menu, X, Phone, Mail, MapPin, MessageCircle, ShieldCheck } from "lucide-react";
 import { HOTEL } from "@/lib/hotel";
 import { Button } from "@/components/ui/button";
@@ -23,26 +23,8 @@ export function SiteLayout({
   transparent?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const navigate = useNavigate();
   const { data: staffAuth } = useStaffAuth();
-  const isStaff = !!staffAuth?.isStaff;
   const isAdmin = !!staffAuth?.isAdmin;
-
-  // Discreet keyboard shortcut (Ctrl+Shift+S or Ctrl+Shift+L) for staff/admin to access portal
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (
-        (e.ctrlKey || e.metaKey) &&
-        e.shiftKey &&
-        (e.key === "S" || e.key === "s" || e.key === "L" || e.key === "l")
-      ) {
-        e.preventDefault();
-        navigate({ to: isStaff ? "/staff" : "/auth" });
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [navigate, isStaff]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -69,13 +51,7 @@ export function SiteLayout({
                 {n.label}
               </Link>
             ))}
-            <Link
-              to="/auth"
-              className="text-xs uppercase tracking-[0.2em] text-gold transition hover:opacity-100 opacity-85"
-            >
-              Staff / Admin Login
-            </Link>
-            {isStaff && (
+            {isAdmin && (
               <Button
                 asChild
                 variant="outline"
@@ -87,7 +63,7 @@ export function SiteLayout({
                   className="flex items-center gap-1.5 text-xs tracking-wider uppercase"
                 >
                   <ShieldCheck className="size-3.5" />
-                  {isAdmin ? "Admin" : "Staff"}
+                  Admin dashboard
                 </Link>
               </Button>
             )}
@@ -111,21 +87,14 @@ export function SiteLayout({
                 {n.label}
               </Link>
             ))}
-            <Link
-              to="/auth"
-              onClick={() => setOpen(false)}
-              className="text-sm uppercase tracking-[0.2em] text-gold"
-            >
-              Staff / Admin Login
-            </Link>
-            {isStaff && (
+            {isAdmin && (
               <Link
                 to="/staff"
                 onClick={() => setOpen(false)}
                 className="flex items-center gap-2 text-sm uppercase tracking-[0.25em] text-gold font-medium"
               >
                 <ShieldCheck className="size-4" />
-                {isAdmin ? "Admin Portal" : "Staff Portal"}
+                Admin dashboard
               </Link>
             )}
           </div>
@@ -163,26 +132,16 @@ export function SiteLayout({
                 {n.label}
               </Link>
             ))}
-            <Link to="/auth" className="block text-gold hover:underline">
-              Staff / Admin Login
-            </Link>
-            {isStaff && (
+            {isAdmin && (
               <Link to="/staff" className="flex items-center gap-1.5 text-gold hover:underline">
                 <ShieldCheck className="size-3.5" />
-                {isAdmin ? "Admin Portal" : "Staff Portal"}
+                Admin dashboard
               </Link>
             )}
           </div>
         </div>
         <div className="border-t border-sidebar-border py-5 text-center text-xs opacity-60">
-          <Link
-            to={isStaff ? "/staff" : "/auth"}
-            className="hover:text-gold transition-colors inline-block cursor-default"
-            title="Vaasal Villa"
-          >
-            ©
-          </Link>{" "}
-          {new Date().getFullYear()} Vaasal Villa Hotel. All rights reserved.
+          <span>©</span> {new Date().getFullYear()} Vaasal Villa Hotel. All rights reserved.
         </div>
       </footer>
       <a

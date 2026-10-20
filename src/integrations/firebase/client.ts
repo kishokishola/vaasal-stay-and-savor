@@ -1,5 +1,11 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import {
+  createUserWithEmailAndPassword,
+  getAuth,
+  inMemoryPersistence,
+  setPersistence,
+  type User,
+} from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const requiredConfig = {
@@ -24,6 +30,24 @@ export const firebaseApp = getApps().length
 
 export const auth = getAuth(firebaseApp);
 export const db = getFirestore(firebaseApp);
+
+const provisioningApp =
+  getApps().find((app) => app.name === "staff-account-provisioning") ??
+  initializeApp(firebaseApp.options, "staff-account-provisioning");
+const provisioningAuth = getAuth(provisioningApp);
+
+export async function createProvisionedStaffAccount(
+  email: string,
+  password: string,
+): Promise<User> {
+  await setPersistence(provisioningAuth, inMemoryPersistence);
+  const credential = await createUserWithEmailAndPassword(
+    provisioningAuth,
+    email.trim().toLowerCase(),
+    password,
+  );
+  return credential.user;
+}
 
 export async function waitForAuth() {
   await auth.authStateReady();
