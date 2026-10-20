@@ -1,5 +1,11 @@
 import type { Tables } from "@/integrations/supabase/types";
-import { getMenuItems, getRoomByCode, getRooms, type MenuItem, type Room } from "@/lib/firebase-data";
+import {
+  getMenuItems,
+  getRoomByCode,
+  getRooms,
+  type MenuItem,
+  type Room,
+} from "@/lib/firebase-data";
 
 const supabaseUrl = import.meta.env["VITE_SUPABASE_URL"];
 const supabaseKey = import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"];
@@ -83,13 +89,29 @@ export async function getPublicRoomByCode(code: string) {
 }
 
 export function getPublicMenuItems() {
-  return withSupabaseFallback<MenuItem>(
-    "menu",
-    () => getMenuItems(true),
-    () =>
-      readSupabaseRows<Tables<"menu_items">>("menu_items", {
+  return (async () => {
+    let primaryError: unknown;
+    try {
+      const rows = await getMenuItems();
+      if (rows.length) return rows.filter((item) => item.available && !item.deleted);
+    } catch (error) {
+      primaryError = error;
+      console.warn("Firebase menu catalogue is unavailable; trying Supabase.", error);
+    }
+
+    try {
+      return await readSupabaseRows<MenuItem>("menu_items", {
         available: "eq.true",
         order: "category.asc,name.asc",
-      }),
-  );
+      });
+    } catch (fallbackError) {
+      if (primaryError) {
+        throw new AggregateError(
+          [primaryError, fallbackError],
+          "Could not load menu from Firebase or Supabase.",
+        );
+      }
+      throw fallbackError;
+    }
+  })();
 }

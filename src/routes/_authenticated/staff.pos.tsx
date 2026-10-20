@@ -3,7 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Minus, Plus, Trash2, Printer, Search } from "lucide-react";
-import { getMenuItems, placeOrder } from "@/lib/firebase-data";
+import { placeOrder } from "@/lib/firebase-data";
+import { getPublicMenuItems } from "@/lib/public-catalog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,16 +31,25 @@ type Receipt = {
   subtotal: number;
   discount: number;
   service: number;
+  tax: number;
   total: number;
   method: string;
+  paymentStatus: "paid" | "unpaid";
+  customerName: string;
+  customerPhone: string;
   at: string;
 };
 
 function Pos() {
   const qc = useQueryClient();
-  const { data: menu } = useQuery({
+  const {
+    data: menu,
+    isLoading: menuLoading,
+    isError: menuError,
+    error: menuLoadError,
+  } = useQuery({
     queryKey: ["menu"],
-    queryFn: () => getMenuItems(),
+    queryFn: getPublicMenuItems,
   });
   const [cat, setCat] = useState("All");
   const [q, setQ] = useState("");
@@ -48,17 +58,21 @@ function Pos() {
   const [ref, setRef] = useState("");
   const [discount, setDiscount] = useState(0);
   const [servicePct, setServicePct] = useState(10);
+  const [taxPct, setTaxPct] = useState(0);
   const [method, setMethod] = useState("cash");
+  const [paymentStatus, setPaymentStatus] = useState<"paid" | "unpaid">("paid");
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
 
-  const avail = (menu ?? []).filter((m) => m.available);
+  const avail = (menu ?? []).filter((m) => m.available && !m.deleted);
   const cats = ["All", ...Array.from(new Set(avail.map((m) => m.category)))];
   const shown = avail.filter(
     (m) => (cat === "All" || m.category === cat) && m.name.toLowerCase().includes(q.toLowerCase()),
   );
   const subtotal = useMemo(() => cart.reduce((s, l) => s + l.price * l.qty, 0), [cart]);
-  const t = orderTotals(subtotal, discount, servicePct);
+  const t = orderTotals(subtotal, Math.min(discount, subtotal), servicePct, taxPct);
 
   const add = (m: { id: string; name: string; price: number }) =>
     setCart((c) => {
@@ -77,18 +91,34 @@ function Pos() {
       toast.error("Cart is empty");
       return;
     }
+    if (!customerName.trim()) {
+      toast.error("Enter the customer name.");
+      return;
+    }
+    if (discount < 0 || discount > subtotal) {
+      toast.error("Discount cannot be greater than the subtotal.");
+      return;
+    }
+    if (servicePct < 0 || servicePct > 100 || taxPct < 0 || taxPct > 100) {
+      toast.error("Service charge and tax must be between 0% and 100%.");
+      return;
+    }
     setBusy(true);
     try {
       const order = await placeOrder({
         order_type: type,
         table_no: type === "dine_in" ? ref || null : null,
         room_code: type === "room" ? ref || null : null,
+        customer_name: customerName,
+        customer_phone: customerPhone,
         subtotal,
         discount,
         service_charge: t.service,
+        tax: t.tax,
         total: t.total,
         payment_method: method,
-        status: method === "room_bill" ? "charged_to_room" : "paid",
+        payment_status: type === "room" && method === "room_bill" ? "unpaid" : paymentStatus,
+        status: "placed",
         items: cart.map((line) => ({
           menu_item_id: line.id,
           name: line.name,
@@ -104,13 +134,21 @@ function Pos() {
         subtotal,
         discount,
         service: t.service,
+        tax: t.tax,
         total: t.total,
         method,
+        paymentStatus: type === "room" && method === "room_bill" ? "unpaid" : paymentStatus,
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim(),
         at: new Date().toLocaleString(),
       });
       setCart([]);
       setDiscount(0);
+      setTaxPct(0);
       setRef("");
+      setCustomerName("");
+      setCustomerPhone("");
+      setPaymentStatus("paid");
       qc.invalidateQueries({ queryKey: ["orders"] });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not save the order.");
@@ -152,6 +190,9 @@ function Pos() {
               onClick={() => add(m)}
               className="bg-card p-4 text-left shadow-luxe transition hover:-translate-y-0.5 hover:ring-1 hover:ring-accent"
             >
+              {m.image_url && (
+                <img src={m.image_url} alt="" className="mb-3 h-28 w-full rounded object-cover" />
+              )}
               <div className="text-[0.65rem] uppercase tracking-widest text-accent">
                 {m.category}
               </div>
@@ -159,6 +200,21 @@ function Pos() {
               <div className="mt-2 text-sm text-primary">{lkr(m.price)}</div>
             </button>
           ))}
+          {menuLoading && <p className="text-sm text-muted-foreground">Loading menu…</p>}
+          {menuError && (
+            <p role="alert" className="text-sm text-destructive">
+              {menuLoadError instanceof Error
+                ? menuLoadError.message
+                : "Could not load menu items."}
+            </p>
+          )}
+          {!menuLoading && !menuError && !shown.length && (
+            <p className="col-span-full text-sm text-muted-foreground">
+              {avail.length
+                ? "No available foods match this category or search."
+                : "No available food items yet. Add menu items from the Menu page."}
+            </p>
+          )}
         </div>
       </div>
 
@@ -229,12 +285,33 @@ function Pos() {
             </div>
           ))}
         </div>
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          <div>
+            <Label>Customer name</Label>
+            <Input
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              placeholder="Required"
+            />
+          </div>
+          <div>
+            <Label>Phone</Label>
+            <Input
+              type="tel"
+              value={customerPhone}
+              onChange={(e) => setCustomerPhone(e.target.value)}
+              placeholder="Optional"
+            />
+          </div>
+        </div>
         <div className="mt-5 grid grid-cols-2 gap-3 border-t border-border pt-4">
           <div>
             <Label>Discount (LKR)</Label>
             <Input
               type="number"
               min={0}
+              max={subtotal}
+              step="0.01"
               value={discount}
               onChange={(e) => setDiscount(Number(e.target.value) || 0)}
             />
@@ -248,11 +325,23 @@ function Pos() {
               onChange={(e) => setServicePct(Number(e.target.value) || 0)}
             />
           </div>
+          <div>
+            <Label>Tax %</Label>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              step="0.01"
+              value={taxPct}
+              onChange={(e) => setTaxPct(Number(e.target.value) || 0)}
+            />
+          </div>
         </div>
         <div className="mt-4 space-y-1 text-sm">
           <Row l="Subtotal" v={lkr(subtotal)} />
           {discount > 0 && <Row l="Discount" v={"− " + lkr(discount)} />}
           <Row l={`Service (${servicePct}%)`} v={lkr(t.service)} />
+          {taxPct > 0 && <Row l={`Tax (${taxPct}%)`} v={lkr(t.tax)} />}
           <div className="flex justify-between pt-2 font-display text-2xl">
             <span>Total</span>
             <span className="text-primary">{lkr(t.total)}</span>
@@ -267,10 +356,28 @@ function Pos() {
             <SelectContent>
               <SelectItem value="cash">Cash</SelectItem>
               <SelectItem value="card">Card</SelectItem>
+              <SelectItem value="online">Online</SelectItem>
               {type === "room" && <SelectItem value="room_bill">Charge to room</SelectItem>}
             </SelectContent>
           </Select>
         </div>
+        {!(type === "room" && method === "room_bill") && (
+          <div className="mt-3">
+            <Label>Payment status</Label>
+            <Select
+              value={paymentStatus}
+              onValueChange={(value: "paid" | "unpaid") => setPaymentStatus(value)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="paid">Paid</SelectItem>
+                <SelectItem value="unpaid">Unpaid</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <Button
           variant="luxe"
           size="lg"
@@ -297,6 +404,9 @@ function Pos() {
                 <div>
                   {receipt.type.replace("_", " ")} {receipt.ref && `· ${receipt.ref}`}
                 </div>
+                <div>
+                  {receipt.customerName} {receipt.customerPhone && `· ${receipt.customerPhone}`}
+                </div>
               </div>
               <div className="border-t border-dashed border-border pt-2">
                 {receipt.lines.map((l) => (
@@ -307,11 +417,13 @@ function Pos() {
                 <Row l="Subtotal" v={lkr(receipt.subtotal)} />
                 {receipt.discount > 0 && <Row l="Discount" v={"− " + lkr(receipt.discount)} />}
                 <Row l="Service" v={lkr(receipt.service)} />
+                {receipt.tax > 0 && <Row l="Tax" v={lkr(receipt.tax)} />}
                 <div className="flex justify-between text-sm font-bold">
                   <span>TOTAL</span>
                   <span>{lkr(receipt.total)}</span>
                 </div>
                 <Row l="Paid by" v={receipt.method.replace("_", " ")} />
+                <Row l="Payment status" v={receipt.paymentStatus} />
               </div>
               <div className="pt-2 text-center">Thank you — come again!</div>
             </div>

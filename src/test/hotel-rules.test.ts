@@ -7,7 +7,20 @@ describe("hotel rules", () => {
     expect(nightsBetween("2026-11-04", "2026-11-01")).toBe(0);
   });
   it("applies service charge after discount", () => {
-    expect(orderTotals(5000, 1000, 10)).toEqual({ base: 4000, service: 400, total: 4400 });
+    expect(orderTotals(5000, 1000, 10)).toEqual({
+      base: 4000,
+      service: 400,
+      tax: 0,
+      total: 4400,
+    });
+  });
+  it("calculates tax against the discounted subtotal", () => {
+    expect(orderTotals(5000, 1000, 10, 5)).toEqual({
+      base: 4000,
+      service: 400,
+      tax: 200,
+      total: 4600,
+    });
   });
   it("resolves site assets beneath the configured deployment base path", () => {
     expect(publicAsset("/images/room.jpg")).toBe(`${import.meta.env.BASE_URL}images/room.jpg`);

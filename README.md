@@ -12,11 +12,11 @@ Copy-Item .env.example .env
 npm run dev
 ```
 
-Fill `.env` with the Firebase web app configuration values. In Firebase Console, enable Email/Password in Authentication, create Firestore, and add your local host and `kishokishola.github.io` to Authentication's authorized domains. This Spark Free setup does not use Firebase Storage.
+Fill `.env` with the Firebase web app configuration values. In Firebase Console, enable Email/Password and Anonymous sign-in in Authentication, create Firestore, and add your local host and `kishokishola.github.io` to Authentication's authorized domains. Anonymous sign-in is used invisibly for customer food-order requests; it does not create a customer sign-up page or grant staff access. This Spark Free setup does not use Firebase Storage.
 
 ## Firebase and GitHub Pages setup
 
-1. Create a Firebase project and register a Web app. Enable **Authentication → Email/Password** and create a Firestore database. This Spark Free setup does not use Firebase Storage.
+1. Create a Firebase project and register a Web app. Enable **Authentication → Email/Password** and **Authentication → Anonymous**, and create a Firestore database. This Spark Free setup does not use Firebase Storage.
 2. Add `kishokishola.github.io` to **Authentication → Settings → Authorized domains**.
 3. Publish the Firestore rules and indexes using the Firebase CLI signed in on your own computer:
 
@@ -48,6 +48,12 @@ Open `/auth` directly and sign in with the Firebase email and password provision
 Firebase Email/Password sign-in does not require email verification. Administrators create staff accounts in **Staff → Create staff account**; customers cannot create or assign staff roles. Staff can request a password reset from `/auth`; if the reset email is unavailable, an administrator must reset the password in Firebase Authentication. If Firebase reports `auth/unauthorized-domain`, add the exact website hostname to **Authentication → Settings → Authorized domains**.
 
 The project owner must bootstrap the first admin in Firestore by creating a `staff_access/{lowercase-email}` document with `email` and `role: "admin"` fields. Publish `firestore.rules` before staff sign-in so role checks and staff operations are allowed. The rules retain role-based staff checks and admin-only role assignment; never let users self-assign a role. The public website shows an **Admin dashboard** link only to authenticated administrators.
+
+## Restaurant menu and POS
+
+Staff can manage food names, categories, descriptions, prices, availability and photos from **Staff → Menu**. Uploaded food photos are resized and saved with the menu document in Firestore, so Firebase Storage is not required. If Firestore has no menu catalogue yet, the staff menu and POS read the existing Supabase public catalogue; the first menu edit copies that catalogue into Firestore before saving the change.
+
+The **Dining** page builds a cart from the live available menu, calculates the estimated subtotal and saves a pending customer order request in Firestore. Staff can review and update those requests in **Orders & Sales**; they should verify the current menu and enter the final bill in the POS before collecting payment. Online order requests do not process payments. The staff POS supports dine-in, takeaway and room service, customer details, quantities, discounts, service charge, tax, payment method/status and printable receipts. Staff can update restaurant order progress and review daily sales. Publish Firestore rules after updating them so public order requests and staff status changes are permitted.
 
 Use a trusted local machine with Node.js and private credentials; do not paste credentials into chat or commit them. Set:
 

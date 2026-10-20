@@ -1,8 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { Minus, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { getPublicMenuItems } from "@/lib/public-catalog";
 import { SiteLayout, PageHero } from "@/components/site/SiteLayout";
 import { lkr, publicAsset } from "@/lib/hotel";
+import type { CustomerOrderRequest, MenuItem } from "@/lib/firebase-data";
+import { createCustomerOrderRequest } from "@/lib/firebase-data";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const Route = createFileRoute("/dining")({
   head: () => ({
@@ -22,15 +37,76 @@ export const Route = createFileRoute("/dining")({
   component: Dining,
 });
 
+type DiningLine = { item: MenuItem; qty: number };
+
 function Dining() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["menu-public"],
     queryFn: getPublicMenuItems,
   });
-  const groups = (data ?? []).reduce<Record<string, typeof data>>((acc, m) => {
+  const [cart, setCart] = useState<DiningLine[]>([]);
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [orderType, setOrderType] = useState<CustomerOrderRequest["order_type"]>("dine_in");
+  const [orderReference, setOrderReference] = useState("");
+  const [notes, setNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const items = (data ?? []).filter((item) => item.available && !item.deleted);
+  const groups = items.reduce<Record<string, MenuItem[]>>((acc, m) => {
     (acc[m.category] ||= [] as never).push(m);
     return acc;
   }, {});
+  const subtotal = useMemo(
+    () => cart.reduce((total, line) => total + Number(line.item.price) * line.qty, 0),
+    [cart],
+  );
+  function add(item: MenuItem) {
+    setCart((current) => {
+      const existing = current.find((line) => line.item.id === item.id);
+      return existing
+        ? current.map((line) => (line.item.id === item.id ? { ...line, qty: line.qty + 1 } : line))
+        : [...current, { item, qty: 1 }];
+    });
+  }
+  function bump(id: string, delta: number) {
+    setCart((current) =>
+      current
+        .map((line) => (line.item.id === id ? { ...line, qty: line.qty + delta } : line))
+        .filter((line) => line.qty > 0),
+    );
+  }
+  async function sendOrder() {
+    if (!cart.length) {
+      toast.error("Add at least one food item to your order.");
+      return;
+    }
+    if (!customerName.trim() || !customerPhone.trim()) {
+      toast.error("Enter your name and phone number to continue.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const requestId = await createCustomerOrderRequest({
+        customer_name: customerName,
+        customer_phone: customerPhone,
+        order_type: orderType,
+        order_reference: orderType === "takeaway" ? null : orderReference.trim() || null,
+        items_summary: cart
+          .map(({ item, qty }) => `${qty} x ${item.name} — ${lkr(Number(item.price) * qty)}`)
+          .join("\n"),
+        subtotal_estimate: subtotal,
+        notes: notes.trim() || null,
+      });
+      setCart([]);
+      setNotes("");
+      toast.success(`Order request received. Reference: ${requestId.slice(0, 8)}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not submit your food order.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <SiteLayout>
       <PageHero
@@ -46,7 +122,14 @@ function Dining() {
           </p>
         )}
         {!isLoading && !isError && !data?.length && (
-          <p className="text-muted-foreground">Our menu is being updated. Please check back soon.</p>
+          <p className="text-muted-foreground">
+            Our menu is being updated. Please check back soon.
+          </p>
+        )}
+        {!isLoading && !isError && !!data?.length && !items.length && (
+          <p className="text-muted-foreground">
+            No dishes are available to order right now. Please check back soon.
+          </p>
         )}
         <div className="grid gap-16 md:grid-cols-2">
           {Object.entries(groups).map(([cat, items]) => (
@@ -55,21 +138,179 @@ function Dining() {
               <div className="gold-rule mt-3 mb-6" />
               <ul className="space-y-6">
                 {items!.map((m) => (
-                  <li key={m.id}>
-                    <div className="flex items-baseline gap-3">
-                      <span className="font-display text-xl">{m.name}</span>
-                      <span className="flex-1 border-b border-dotted border-border" />
-                      <span className="text-sm text-primary">{lkr(m.price)}</span>
-                    </div>
-                    {m.description && (
-                      <p className="mt-1 text-sm text-muted-foreground">{m.description}</p>
+                  <li key={m.id} className="flex items-start gap-3">
+                    {m.image_url && (
+                      <img
+                        src={m.image_url}
+                        alt={m.name}
+                        className="size-16 shrink-0 rounded object-cover"
+                      />
                     )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline gap-3">
+                        <span className="font-display text-xl">{m.name}</span>
+                        <span className="flex-1 border-b border-dotted border-border" />
+                        <span className="text-sm text-primary">{lkr(m.price)}</span>
+                      </div>
+                      {m.description && (
+                        <p className="mt-1 text-sm text-muted-foreground">{m.description}</p>
+                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="mt-2"
+                        onClick={() => add(m)}
+                      >
+                        <Plus /> Add to order
+                      </Button>
+                    </div>
                   </li>
                 ))}
               </ul>
             </div>
           ))}
         </div>
+        {items.length > 0 && (
+          <section className="mt-16 bg-card p-6 shadow-luxe">
+            <div className="eyebrow">Your order</div>
+            <h2 className="mt-2 font-display text-3xl">Place a dining order</h2>
+            <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_1fr]">
+              <div className="space-y-4">
+                {!cart.length && (
+                  <p className="text-sm text-muted-foreground">
+                    Choose food items above. Your subtotal will update automatically.
+                  </p>
+                )}
+                {cart.map(({ item, qty }) => (
+                  <div key={item.id} className="flex items-center gap-2 text-sm">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium">{item.name}</div>
+                      <div className="text-muted-foreground">
+                        {lkr(item.price)} each · {lkr(Number(item.price) * qty)}
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      aria-label={`Remove one ${item.name}`}
+                      onClick={() => bump(item.id, -1)}
+                    >
+                      <Minus />
+                    </Button>
+                    <span className="w-6 text-center">{qty}</span>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      aria-label={`Add one ${item.name}`}
+                      onClick={() => bump(item.id, 1)}
+                    >
+                      <Plus />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      aria-label={`Remove ${item.name} from order`}
+                      onClick={() => bump(item.id, -qty)}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </div>
+                ))}
+                <div className="flex justify-between border-t border-border pt-4 font-display text-xl">
+                  <span>Subtotal</span>
+                  <span className="text-primary">{lkr(subtotal)}</span>
+                </div>
+              </div>
+              <div className="grid content-start gap-4 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="dining-customer-name">Your name</Label>
+                  <Input
+                    id="dining-customer-name"
+                    autoComplete="name"
+                    maxLength={120}
+                    value={customerName}
+                    onChange={(event) => setCustomerName(event.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="dining-customer-phone">Phone number</Label>
+                  <Input
+                    id="dining-customer-phone"
+                    type="tel"
+                    autoComplete="tel"
+                    maxLength={40}
+                    value={customerPhone}
+                    onChange={(event) => setCustomerPhone(event.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label>Order type</Label>
+                  <Select
+                    value={orderType}
+                    onValueChange={(value) => {
+                      if (value === "dine_in" || value === "takeaway" || value === "room") {
+                        setOrderType(value);
+                        if (value === "takeaway") setOrderReference("");
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="dine_in">Dine in</SelectItem>
+                      <SelectItem value="takeaway">Takeaway</SelectItem>
+                      <SelectItem value="room">Room service</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {orderType !== "takeaway" && (
+                  <div>
+                    <Label htmlFor="dining-order-reference">
+                      {orderType === "room" ? "Room number" : "Table number"}
+                    </Label>
+                    <Input
+                      id="dining-order-reference"
+                      maxLength={40}
+                      value={orderReference}
+                      onChange={(event) => setOrderReference(event.target.value)}
+                    />
+                  </div>
+                )}
+                <div className="sm:col-span-2">
+                  <Label htmlFor="dining-order-notes">Order notes</Label>
+                  <Input
+                    id="dining-order-notes"
+                    maxLength={500}
+                    value={notes}
+                    onChange={(event) => setNotes(event.target.value)}
+                    placeholder="Allergies or special requests"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="luxe"
+                  size="lg"
+                  className="sm:col-span-2"
+                  disabled={!cart.length || submitting}
+                  onClick={sendOrder}
+                >
+                  {submitting ? "Sending order…" : "Place order"}
+                </Button>
+                <p className="text-xs text-muted-foreground sm:col-span-2">
+                  Your order request and estimated subtotal will be sent to the hotel team for
+                  confirmation. Payment is arranged with the restaurant.
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
       </section>
     </SiteLayout>
   );

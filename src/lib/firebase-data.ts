@@ -12,21 +12,42 @@ import {
   where,
   type DocumentData,
 } from "firebase/firestore";
+import { signInAnonymously } from "firebase/auth";
 import type { Tables } from "@/integrations/supabase/types";
 import { auth, db, requireFirebaseConfig } from "@/integrations/firebase/client";
 
 export type Room = Tables<"rooms">;
-export type MenuItem = Tables<"menu_items">;
+export type MenuItem = Tables<"menu_items"> & {
+  deleted?: boolean;
+  image_url?: string;
+};
 export type Booking = Tables<"bookings"> & { room_code: string; room_name: string };
 export type Order = Omit<Tables<"orders">, "created_at"> & {
   created_at: string;
   order_items: Tables<"order_items">[];
+  customer_name?: string;
+  customer_phone?: string;
+  payment_status?: "paid" | "unpaid";
+  tax?: number;
 };
 export type StaffMember = {
   role_id: string;
   user_id: string;
   email: string;
   role: "admin" | "cashier";
+};
+export type CustomerOrderRequest = {
+  id: string;
+  customer_name: string;
+  customer_phone: string;
+  order_type: "dine_in" | "takeaway" | "room";
+  order_reference: string | null;
+  items_summary: string;
+  subtotal_estimate: number;
+  notes: string | null;
+  status: "pending" | "confirmed" | "in_prep" | "ready" | "completed" | "cancelled";
+  created_at: string;
+  updated_at?: string;
 };
 type Role = "admin" | "cashier";
 
@@ -149,11 +170,11 @@ export async function createBooking(input: {
 
 export async function getMenuItems(availableOnly = false) {
   requireFirebaseConfig();
-  const constraints = availableOnly
-    ? [where("available", "==", true), orderBy("category"), orderBy("name")]
-    : [orderBy("category"), orderBy("name")];
-  const result = await getDocs(query(coll("menu_items"), ...constraints));
-  return result.docs.map((item) => withId<MenuItem>(item.id, item.data() as MenuItem));
+  const result = await getDocs(coll("menu_items"));
+  return result.docs
+    .map((item) => withId<MenuItem>(item.id, item.data() as MenuItem))
+    .filter((item) => !availableOnly || item.available)
+    .sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
 }
 
 export async function addMenuItem(input: {
@@ -161,31 +182,65 @@ export async function addMenuItem(input: {
   category: string;
   price: number;
   description: string;
+  image_url?: string;
 }) {
   requireFirebaseConfig();
+  if (!input.name.trim() || !input.category.trim())
+    throw new Error("Food name and category are required.");
+  if (!Number.isFinite(input.price) || input.price <= 0)
+    throw new Error("Food price must be greater than zero.");
   const item = doc(coll("menu_items"));
-  await setDoc(item, { ...input, available: true, created_at: new Date().toISOString() });
+  await setDoc(item, {
+    ...input,
+    name: input.name.trim(),
+    category: input.category.trim(),
+    description: input.description.trim(),
+    available: true,
+    deleted: false,
+    created_at: new Date().toISOString(),
+  });
+}
+
+export async function seedMenuItems(items: MenuItem[]) {
+  requireFirebaseConfig();
+  const existing = await getDocs(coll("menu_items"));
+  if (!existing.empty || !items.length) return;
+  await Promise.all(
+    items.map(({ id, ...item }) => setDoc(refFor("menu_items", id), { ...item, deleted: false })),
+  );
 }
 
 export async function updateMenuItem(id: string, changes: Partial<MenuItem>) {
   requireFirebaseConfig();
+  if (
+    changes.price !== undefined &&
+    (!Number.isFinite(Number(changes.price)) || changes.price <= 0)
+  )
+    throw new Error("Food price must be greater than zero.");
+  if (changes.name !== undefined && !changes.name.trim()) throw new Error("Food name is required.");
+  if (changes.category !== undefined && !changes.category.trim())
+    throw new Error("Food category is required.");
   await updateDoc(refFor("menu_items", id), changes);
 }
 
 export async function deleteMenuItem(id: string) {
   requireFirebaseConfig();
-  await deleteDoc(refFor("menu_items", id));
+  await updateDoc(refFor("menu_items", id), { available: false, deleted: true });
 }
 
 export async function placeOrder(input: {
   order_type: string;
   table_no: string | null;
   room_code: string | null;
+  customer_name?: string;
+  customer_phone?: string;
   subtotal: number;
   discount: number;
   service_charge: number;
+  tax?: number;
   total: number;
   payment_method: string;
+  payment_status?: "paid" | "unpaid";
   status: string;
   items: { menu_item_id: string; name: string; price: number; qty: number }[];
 }) {
@@ -202,11 +257,15 @@ export async function placeOrder(input: {
       order_type: input.order_type,
       table_no: input.table_no,
       room_code: input.room_code,
+      customer_name: input.customer_name?.trim() ?? "",
+      customer_phone: input.customer_phone?.trim() ?? "",
       subtotal: input.subtotal,
       discount: input.discount,
       service_charge: input.service_charge,
+      tax: input.tax ?? 0,
       total: input.total,
       payment_method: input.payment_method,
+      payment_status: input.payment_status ?? "paid",
       status: input.status,
       cashier_id: auth.currentUser?.uid ?? null,
       created_at: new Date().toISOString(),
@@ -218,6 +277,63 @@ export async function placeOrder(input: {
     });
   });
   return { id: order.id, order_no: orderNo };
+}
+
+export async function createCustomerOrderRequest(input: {
+  customer_name: string;
+  customer_phone: string;
+  order_type: CustomerOrderRequest["order_type"];
+  order_reference: string | null;
+  items_summary: string;
+  subtotal_estimate: number;
+  notes: string | null;
+}) {
+  requireFirebaseConfig();
+  if (!input.customer_name.trim() || !input.customer_phone.trim())
+    throw new Error("Enter your name and phone number.");
+  if (!["dine_in", "takeaway", "room"].includes(input.order_type))
+    throw new Error("Choose a valid order type.");
+  if (!input.items_summary.trim() || input.items_summary.length > 4000)
+    throw new Error("Your order contains too many items.");
+  if (!Number.isFinite(input.subtotal_estimate) || input.subtotal_estimate < 0)
+    throw new Error("The order subtotal is invalid.");
+  if (!auth.currentUser) await signInAnonymously(auth);
+  const request = doc(coll("customer_order_requests"));
+  await setDoc(request, {
+    ...input,
+    customer_name: input.customer_name.trim(),
+    customer_phone: input.customer_phone.trim(),
+    status: "pending",
+    created_at: new Date().toISOString(),
+  });
+  return request.id;
+}
+
+export async function getCustomerOrderRequests() {
+  requireFirebaseConfig();
+  const result = await getDocs(
+    query(coll("customer_order_requests"), orderBy("created_at", "desc")),
+  );
+  return result.docs.map((item) =>
+    withId<CustomerOrderRequest>(item.id, item.data() as CustomerOrderRequest),
+  );
+}
+
+export async function updateCustomerOrderRequestStatus(id: string, status: string) {
+  requireFirebaseConfig();
+  if (!["pending", "confirmed", "in_prep", "ready", "completed", "cancelled"].includes(status))
+    throw new Error("Choose a valid customer order status.");
+  await updateDoc(refFor("customer_order_requests", id), {
+    status,
+    updated_at: new Date().toISOString(),
+  });
+}
+
+export async function updateOrderStatus(id: string, status: string) {
+  requireFirebaseConfig();
+  if (!["placed", "in_prep", "ready", "delivered", "cancelled"].includes(status))
+    throw new Error("Choose a valid order status.");
+  await updateDoc(refFor("orders", id), { status, updated_at: new Date().toISOString() });
 }
 
 export async function getOrders() {

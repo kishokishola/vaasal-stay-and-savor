@@ -22,10 +22,11 @@ export function nightsBetween(a: string, b: string) {
 }
 
 /** Order totals: service charge is a percentage of (subtotal - discount). */
-export function orderTotals(subtotal: number, discount: number, servicePct: number) {
+export function orderTotals(subtotal: number, discount: number, servicePct: number, taxPct = 0) {
   const base = Math.max(0, subtotal - discount);
   const service = Math.round(base * servicePct) / 100;
-  return { base, service, total: base + service };
+  const tax = Math.round(base * taxPct) / 100;
+  return { base, service, tax, total: base + service + tax };
 }
 
 export const roomsQuery = {

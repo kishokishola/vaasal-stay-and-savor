@@ -11,6 +11,11 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/staff_access/$(request.auth.token.email.lower()));
     }
 
+    function canCreateCustomerOrder() {
+      return signedIn()
+        && (request.auth.token.firebase.sign_in_provider == "anonymous" || staff());
+    }
+
     function admin() {
       return staff()
         && get(/databases/$(database)/documents/staff_access/$(request.auth.token.email.lower())).data.role == "admin";
@@ -64,7 +69,53 @@ service cloud.firestore {
 
     match /orders/{orderId} {
       allow read, create: if staff();
-      allow update, delete: if admin();
+      allow update: if admin()
+        || (staff()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updated_at"])
+          && request.resource.data.status in ["placed", "in_prep", "ready", "delivered", "cancelled"]
+          && request.resource.data.updated_at is string);
+      allow delete: if admin();
+    }
+
+    match /customer_order_requests/{requestId} {
+      allow create: if canCreateCustomerOrder()
+        && request.resource.data.keys().hasOnly([
+          "customer_name", "customer_phone", "order_type", "order_reference",
+          "items_summary", "subtotal_estimate", "notes", "status", "created_at"
+        ])
+        && request.resource.data.keys().hasAll([
+          "customer_name", "customer_phone", "order_type", "order_reference",
+          "items_summary", "subtotal_estimate", "notes", "status", "created_at"
+        ])
+        && request.resource.data.customer_name is string
+        && request.resource.data.customer_name.size() > 0
+        && request.resource.data.customer_name.size() <= 120
+        && request.resource.data.customer_phone is string
+        && request.resource.data.customer_phone.size() > 0
+        && request.resource.data.customer_phone.size() <= 40
+        && request.resource.data.order_type in ["dine_in", "takeaway", "room"]
+        && (request.resource.data.order_reference == null
+          || (request.resource.data.order_reference is string
+            && request.resource.data.order_reference.size() <= 40))
+        && request.resource.data.items_summary is string
+        && request.resource.data.items_summary.size() > 0
+        && request.resource.data.items_summary.size() <= 4000
+        && request.resource.data.subtotal_estimate is number
+        && request.resource.data.subtotal_estimate >= 0
+        && request.resource.data.subtotal_estimate <= 10000000
+        && (request.resource.data.notes == null
+          || (request.resource.data.notes is string
+            && request.resource.data.notes.size() <= 500))
+        && request.resource.data.status == "pending"
+        && request.resource.data.created_at is string;
+      allow read: if staff();
+      allow update: if staff()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updated_at"])
+        && request.resource.data.status in [
+          "pending", "confirmed", "in_prep", "ready", "completed", "cancelled"
+        ]
+        && request.resource.data.updated_at is string;
+      allow delete: if admin();
     }
 
     match /counters/{counterId} {
