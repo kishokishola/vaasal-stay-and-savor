@@ -10,7 +10,7 @@ import {
   subscribeToOrders,
   subscribeToRooms,
 } from "@/lib/firebase-data";
-import { lkr } from "@/lib/hotel";
+import { collectedOrderAmount, lkr } from "@/lib/hotel";
 import { hotelDayBounds, hotelToday } from "@/lib/dates";
 import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
 
@@ -34,12 +34,7 @@ function Overview() {
       const todaysOrders = orders.filter(
         (order) => order.created_at >= bounds.start && order.created_at < bounds.end,
       );
-      const paidOrders = todaysOrders.filter(
-        (order) =>
-          order.payment_status === "paid" ||
-          order.payment_method === "room_bill" ||
-          (!order.payment_status && order.status !== "pending"),
-      );
+      const completedSales = todaysOrders.filter((order) => order.status !== "cancelled");
       return {
         bookings,
         pending: bookings.filter((booking) => booking.status === "pending").length,
@@ -50,10 +45,8 @@ function Overview() {
           .filter((booking) => booking.status === "checked_in")
           .reduce((guests, booking) => guests + Number(booking.guests), 0),
         availableRooms: rooms.filter((room) => !reservedRoomIds.includes(room.id)).length,
-        sales: paidOrders
-          .filter((order) => order.status !== "cancelled")
-          .reduce((sum, order) => sum + Number(order.total), 0),
-        orderCount: paidOrders.filter((order) => order.status !== "cancelled").length,
+        sales: completedSales.reduce((sum, order) => sum + collectedOrderAmount(order), 0),
+        orderCount: completedSales.length,
       };
     },
   });

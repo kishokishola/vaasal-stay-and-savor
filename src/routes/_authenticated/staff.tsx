@@ -59,7 +59,10 @@ function StaffLayout() {
       </div>
     );
   const cashierAllowed =
-    loc.pathname.startsWith("/staff/pos") || loc.pathname.startsWith("/staff/orders");
+    loc.pathname.startsWith("/staff/pos") ||
+    loc.pathname.startsWith("/staff/orders") ||
+    loc.pathname.startsWith("/staff/kitchen") ||
+    loc.pathname.startsWith("/staff/petty-cash");
   if (!isAdmin && !cashierAllowed) return <Navigate to="/staff/pos" />;
   return (
     <StaffShell isAdmin={isAdmin}>

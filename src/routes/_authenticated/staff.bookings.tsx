@@ -2,7 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { getBookings, subscribeToBookings, updateBookingStatus } from "@/lib/firebase-data";
+import {
+  getBookings,
+  getOrders,
+  subscribeToBookings,
+  subscribeToOrders,
+  updateBookingStatus,
+} from "@/lib/firebase-data";
 import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { lkr } from "@/lib/hotel";
+import { collectedOrderAmount, lkr } from "@/lib/hotel";
 
 export const Route = createFileRoute("/_authenticated/staff/bookings")({
   component: Bookings,
@@ -47,7 +53,9 @@ function Bookings() {
     queryKey: ["bookings", filter],
     queryFn: () => getBookings(filter === "all" ? undefined : filter),
   });
+  const { data: orders } = useQuery({ queryKey: ["orders"], queryFn: getOrders });
   useFirestoreRealtime(["bookings", filter], subscribeToBookings);
+  useFirestoreRealtime(["orders"], subscribeToOrders);
   async function setStatus(id: string, status: string) {
     try {
       await updateBookingStatus(id, status);
@@ -87,6 +95,7 @@ function Bookings() {
               <TableHead>Room</TableHead>
               <TableHead>Dates</TableHead>
               <TableHead>Total</TableHead>
+              <TableHead>Room-service bill</TableHead>
               <TableHead>Status</TableHead>
               <TableHead />
             </TableRow>
@@ -94,62 +103,83 @@ function Bookings() {
           <TableBody>
             {isLoading && (
               <TableRow>
-                <TableCell colSpan={6}>Loading…</TableCell>
+                <TableCell colSpan={7}>Loading…</TableCell>
               </TableRow>
             )}
             {data?.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="text-muted-foreground">
+                <TableCell colSpan={7} className="text-muted-foreground">
                   No bookings yet.
                 </TableCell>
               </TableRow>
             )}
-            {data?.map((b) => (
-              <TableRow key={b.id}>
-                <TableCell>
-                  <div className="font-medium">{b.guest_name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {b.guest_phone} · {b.guest_email}
-                  </div>
-                  {b.notes && (
-                    <div className="text-xs italic text-muted-foreground">“{b.notes}”</div>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {b.room_code} <span className="text-xs text-muted-foreground">{b.room_name}</span>
-                </TableCell>
-                <TableCell className="whitespace-nowrap text-sm">
-                  {b.check_in} → {b.check_out}
-                  <div className="text-xs text-muted-foreground">{b.guests} guest(s)</div>
-                </TableCell>
-                <TableCell>{lkr(b.total)}</TableCell>
-                <TableCell>
-                  <Badge
-                    variant={
-                      b.status === "cancelled"
-                        ? "destructive"
-                        : b.status === "pending"
-                          ? "secondary"
-                          : "default"
-                    }
-                  >
-                    {b.status.replace("_", " ")}
-                  </Badge>
-                </TableCell>
-                <TableCell className="space-x-2 whitespace-nowrap">
-                  {(next[b.status] ?? []).map((n) => (
-                    <Button
-                      key={n.to}
-                      size="sm"
-                      variant={n.to === "cancelled" ? "outline" : "default"}
-                      onClick={() => setStatus(b.id, n.to)}
+            {data?.map((b) => {
+              const roomOrders = (orders ?? []).filter(
+                (order) => order.booking_id === b.id && order.status !== "cancelled",
+              );
+              const roomServiceTotal = roomOrders.reduce(
+                (sum, order) => sum + Number(order.total),
+                0,
+              );
+              const roomServicePaid = roomOrders.reduce(
+                (sum, order) => sum + collectedOrderAmount(order),
+                0,
+              );
+              return (
+                <TableRow key={b.id}>
+                  <TableCell>
+                    <div className="font-medium">{b.guest_name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {b.guest_phone} · {b.guest_email}
+                    </div>
+                    {b.notes && (
+                      <div className="text-xs italic text-muted-foreground">“{b.notes}”</div>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {b.room_code}{" "}
+                    <span className="text-xs text-muted-foreground">{b.room_name}</span>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-sm">
+                    {b.check_in} → {b.check_out}
+                    <div className="text-xs text-muted-foreground">{b.guests} guest(s)</div>
+                  </TableCell>
+                  <TableCell>{lkr(b.total)}</TableCell>
+                  <TableCell className="whitespace-nowrap text-sm">
+                    {lkr(roomServiceTotal)}
+                    <div className="text-xs text-muted-foreground">
+                      {lkr(roomServicePaid)} paid ·{" "}
+                      {lkr(Math.max(0, roomServiceTotal - roomServicePaid))} due
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={
+                        b.status === "cancelled"
+                          ? "destructive"
+                          : b.status === "pending"
+                            ? "secondary"
+                            : "default"
+                      }
                     >
-                      {n.label}
-                    </Button>
-                  ))}
-                </TableCell>
-              </TableRow>
-            ))}
+                      {b.status.replace("_", " ")}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="space-x-2 whitespace-nowrap">
+                    {(next[b.status] ?? []).map((n) => (
+                      <Button
+                        key={n.to}
+                        size="sm"
+                        variant={n.to === "cancelled" ? "outline" : "default"}
+                        onClick={() => setStatus(b.id, n.to)}
+                      >
+                        {n.label}
+                      </Button>
+                    ))}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>

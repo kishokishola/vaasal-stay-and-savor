@@ -29,6 +29,28 @@ export function orderTotals(subtotal: number, discount: number, servicePct: numb
   return { base, service, tax, total: base + service + tax };
 }
 
+export function paymentStatusFor(total: number, paid: number): "paid" | "unpaid" | "partial" {
+  const totalCents = Math.round(total * 100);
+  const paidCents = Math.round(paid * 100);
+  if (paidCents <= 0) return "unpaid";
+  return paidCents >= totalCents ? "paid" : "partial";
+}
+
+export function collectedOrderAmount(order: {
+  total: number | string;
+  paid_amount?: number;
+  payment_status?: string;
+  status?: string;
+}) {
+  if (typeof order.paid_amount === "number") return order.paid_amount;
+  if (
+    order.payment_status === "paid" ||
+    (!order.payment_status && order.status !== "pending" && order.status !== "cancelled")
+  )
+    return Number(order.total);
+  return 0;
+}
+
 export const roomsQuery = {
   queryKey: ["rooms"],
   queryFn: () => import("@/lib/public-catalog").then(({ getPublicRooms }) => getPublicRooms()),

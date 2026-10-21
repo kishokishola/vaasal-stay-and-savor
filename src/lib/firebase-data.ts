@@ -18,6 +18,7 @@ import { signInAnonymously } from "firebase/auth";
 import type { Tables } from "@/integrations/supabase/types";
 import { auth, db, requireFirebaseConfig } from "@/integrations/firebase/client";
 import { hotelToday } from "@/lib/dates";
+import { collectedOrderAmount, paymentStatusFor } from "@/lib/hotel";
 
 export type Room = Tables<"rooms">;
 export type MenuItem = Tables<"menu_items"> & {
@@ -30,8 +31,18 @@ export type Order = Omit<Tables<"orders">, "created_at"> & {
   order_items: Tables<"order_items">[];
   customer_name?: string;
   customer_phone?: string;
-  payment_status?: "paid" | "unpaid";
+  payment_status?: "paid" | "unpaid" | "partial" | "refunded";
   tax?: number;
+  booking_id?: string | null;
+  paid_amount?: number;
+  cash_received?: number;
+  change_returned?: number;
+  order_status_updated_at?: string;
+  status_note?: string;
+  is_closed?: boolean;
+  customer_order_request_id?: string;
+  status_history?: { status: string; at: string; by: string; note?: string }[];
+  payment_history?: { amount: number; method: string; at: string; by: string }[];
 };
 export type StaffMember = {
   role_id: string;
@@ -51,6 +62,20 @@ export type CustomerOrderRequest = {
   status: "pending" | "confirmed" | "in_prep" | "ready" | "completed" | "cancelled";
   created_at: string;
   updated_at?: string;
+  items?: { menu_item_id: string; name: string; price: number; qty: number }[];
+  created_by_uid?: string;
+  converted_order_id?: string;
+  converted_order_no?: number;
+  converted_total?: number;
+};
+export type PettyCashEntry = {
+  id: string;
+  kind: "top_up" | "expense";
+  amount: number;
+  reason: string;
+  category: string;
+  created_at: string;
+  created_by: string;
 };
 type Role = "admin" | "cashier";
 
@@ -163,6 +188,24 @@ export const subscribeToOrders: ChangeListener = (onChange, onError) =>
   subscribeToCollection("orders", onChange, onError);
 export const subscribeToCustomerOrderRequests: ChangeListener = (onChange, onError) =>
   subscribeToCollection("customer_order_requests", onChange, onError);
+
+export function subscribeToCustomerOrderRequest(
+  id: string,
+  onChange: (request: CustomerOrderRequest | null) => void,
+  onError: (error: Error) => void,
+) {
+  requireFirebaseConfig();
+  return onSnapshot(
+    refFor("customer_order_requests", id),
+    (snapshot) =>
+      onChange(
+        snapshot.exists()
+          ? withId<CustomerOrderRequest>(snapshot.id, snapshot.data() as CustomerOrderRequest)
+          : null,
+      ),
+    onError,
+  );
+}
 
 export function subscribeToRoomLocks(
   roomId: string,
@@ -312,27 +355,143 @@ export async function deleteMenuItem(id: string) {
 }
 
 export async function placeOrder(input: {
-  order_type: string;
+  order_type: "dine_in" | "takeaway" | "room";
   table_no: string | null;
   room_code: string | null;
+  booking_id?: string | null;
   customer_name?: string;
   customer_phone?: string;
-  subtotal: number;
-  discount: number;
-  service_charge: number;
-  tax?: number;
-  total: number;
+  discount_pct: number;
+  service_pct: number;
+  tax_pct: number;
   payment_method: string;
-  payment_status?: "paid" | "unpaid";
-  status: string;
-  items: { menu_item_id: string; name: string; price: number; qty: number }[];
+  payment_status?: "paid" | "unpaid" | "partial";
+  paid_amount?: number;
+  cash_received?: number;
+  status: "placed";
+  items: { menu_item_id: string; qty: number }[];
 }) {
   requireFirebaseConfig();
+  if (
+    !input.items.length ||
+    input.items.length > 30 ||
+    input.items.some(
+      (item) => !item.menu_item_id || !Number.isSafeInteger(item.qty) || item.qty < 1,
+    )
+  )
+    throw new Error("Add valid menu items before completing the order.");
+  if (!["cash", "card", "online", "room_bill", "no_pay"].includes(input.payment_method))
+    throw new Error("Choose a valid payment method.");
+  if (input.payment_method === "room_bill" && input.order_type !== "room")
+    throw new Error("Room charges are only available for room-service orders.");
+  if (input.order_type === "room" && (!input.room_code || !input.booking_id))
+    throw new Error("Choose an active room booking before placing a room-service order.");
   const order = doc(coll("orders"));
   const counter = refFor("counters", "orders");
+  const menuRefs = input.items.map((item) => refFor("menu_items", item.menu_item_id));
   let orderNo = 0;
+  let finalTotals = { subtotal: 0, discount: 0, service_charge: 0, tax: 0, total: 0 };
+  let finalPayment = { payment_status: "unpaid" as "paid" | "unpaid" | "partial", paid_amount: 0 };
+  let finalItems: {
+    menu_item_id: string;
+    name: string;
+    price: number;
+    qty: number;
+    id: string;
+    order_id: string;
+  }[] = [];
   await runTransaction(db, async (transaction) => {
-    const current = await transaction.get(counter);
+    const [current, ...menuSnapshots] = await Promise.all([
+      transaction.get(counter),
+      ...menuRefs.map((menuRef) => transaction.get(menuRef)),
+    ]);
+    if (input.order_type === "room" && input.booking_id) {
+      const bookingSnapshot = await transaction.get(refFor("bookings", input.booking_id));
+      if (
+        !bookingSnapshot.exists() ||
+        bookingSnapshot.data()["status"] !== "checked_in" ||
+        typeof bookingSnapshot.data()["room_id"] !== "string"
+      )
+        throw new Error("The guest is no longer checked in to that room.");
+      const roomSnapshot = await transaction.get(
+        refFor("rooms", bookingSnapshot.data()["room_id"] as string),
+      );
+      if (
+        !roomSnapshot.exists() ||
+        roomSnapshot.data()["active"] !== true ||
+        roomSnapshot.data()["code"] !== input.room_code
+      )
+        throw new Error("The guest is no longer checked in to that room.");
+    }
+    const items = input.items.map((item, index) => {
+      const snapshot = menuSnapshots[index];
+      if (
+        !snapshot?.exists() ||
+        snapshot.data()["available"] !== true ||
+        snapshot.data()["deleted"]
+      )
+        throw new Error("A menu item is no longer available. Refresh the menu and try again.");
+      const data = snapshot.data();
+      if (
+        typeof data["name"] !== "string" ||
+        !Number.isFinite(Number(data["price"])) ||
+        Number(data["price"]) <= 0
+      )
+        throw new Error("A menu item has invalid pricing. Update the menu before ordering.");
+      return {
+        menu_item_id: snapshot.id,
+        name: data["name"] as string,
+        price: Number(data["price"]),
+        qty: item.qty,
+        id: crypto.randomUUID(),
+        order_id: order.id,
+      };
+    });
+    const subtotal = items.reduce((sum, item) => sum + item.price * item.qty, 0);
+    if (!Number.isFinite(subtotal) || subtotal > 99_999_999.99)
+      throw new Error("The order exceeds the maximum billable amount.");
+    if (
+      !Number.isFinite(input.discount_pct) ||
+      input.discount_pct < 0 ||
+      input.discount_pct > 100 ||
+      !Number.isFinite(input.service_pct) ||
+      input.service_pct < 0 ||
+      input.service_pct > 100 ||
+      !Number.isFinite(input.tax_pct) ||
+      input.tax_pct < 0 ||
+      input.tax_pct > 100
+    )
+      throw new Error("The order totals are invalid.");
+    const discount = Math.round(subtotal * input.discount_pct) / 100;
+    const base = Math.max(0, subtotal - discount);
+    const serviceCharge = Math.round(base * input.service_pct) / 100;
+    const tax = Math.round(base * input.tax_pct) / 100;
+    const total = base + serviceCharge + tax;
+    const paidAmount = Math.min(
+      total,
+      Math.max(
+        0,
+        input.payment_method === "room_bill" || input.payment_method === "no_pay"
+          ? 0
+          : (input.paid_amount ?? (input.payment_status === "unpaid" ? 0 : total)),
+      ),
+    );
+    if (!Number.isFinite(total) || !Number.isFinite(paidAmount))
+      throw new Error("The order total is invalid.");
+    const paymentStatus = paymentStatusFor(total, paidAmount);
+    const cashReceived = input.payment_method === "cash" ? (input.cash_received ?? 0) : 0;
+    if (
+      !Number.isFinite(cashReceived) ||
+      cashReceived < 0 ||
+      (input.payment_method === "cash" && cashReceived < paidAmount)
+    )
+      throw new Error("Cash received must cover the amount paid.");
+    const changeReturned = input.payment_method === "cash" ? cashReceived - paidAmount : 0;
+    const now = new Date().toISOString();
+    const actor = auth.currentUser?.email ?? auth.currentUser?.uid ?? "staff";
+    finalItems = items;
+    finalTotals = { subtotal, discount, service_charge: serviceCharge, tax, total };
+    finalPayment = { payment_status: paymentStatus, paid_amount: paidAmount };
     orderNo = (current.data()?.["value"] ?? 0) + 1;
     transaction.set(counter, { value: orderNo });
     transaction.set(order, {
@@ -340,26 +499,34 @@ export async function placeOrder(input: {
       order_type: input.order_type,
       table_no: input.table_no,
       room_code: input.room_code,
+      booking_id: input.booking_id ?? null,
       customer_name: input.customer_name?.trim() ?? "",
       customer_phone: input.customer_phone?.trim() ?? "",
-      subtotal: input.subtotal,
-      discount: input.discount,
-      service_charge: input.service_charge,
-      tax: input.tax ?? 0,
-      total: input.total,
+      subtotal,
+      discount,
+      service_charge: serviceCharge,
+      tax,
+      total,
       payment_method: input.payment_method,
-      payment_status: input.payment_status ?? "paid",
+      payment_status: paymentStatus,
+      paid_amount: paidAmount,
+      cash_received: cashReceived,
+      change_returned: changeReturned,
       status: input.status,
       cashier_id: auth.currentUser?.uid ?? null,
-      created_at: new Date().toISOString(),
-      order_items: input.items.map((item) => ({
-        ...item,
-        id: crypto.randomUUID(),
-        order_id: order.id,
-      })),
+      created_at: now,
+      order_status_updated_at: now,
+      status_note: "",
+      is_closed: false,
+      status_history: [{ status: input.status, at: now, by: actor, note: "Order created" }],
+      payment_history:
+        paidAmount > 0
+          ? [{ amount: paidAmount, method: input.payment_method, at: now, by: actor }]
+          : [],
+      order_items: items,
     });
   });
-  return { id: order.id, order_no: orderNo };
+  return { id: order.id, order_no: orderNo, ...finalTotals, ...finalPayment, items: finalItems };
 }
 
 export async function createCustomerOrderRequest(input: {
@@ -368,6 +535,7 @@ export async function createCustomerOrderRequest(input: {
   order_type: CustomerOrderRequest["order_type"];
   order_reference: string | null;
   items_summary: string;
+  items: { menu_item_id: string; name: string; price: number; qty: number }[];
   subtotal_estimate: number;
   notes: string | null;
 }) {
@@ -378,15 +546,34 @@ export async function createCustomerOrderRequest(input: {
     throw new Error("Choose a valid order type.");
   if (!input.items_summary.trim() || input.items_summary.length > 4000)
     throw new Error("Your order contains too many items.");
-  if (!Number.isFinite(input.subtotal_estimate) || input.subtotal_estimate < 0)
+  if (
+    !input.items.length ||
+    input.items.length > 30 ||
+    input.items.some(
+      (item) =>
+        !item.menu_item_id ||
+        !Number.isSafeInteger(item.qty) ||
+        item.qty < 1 ||
+        !Number.isFinite(item.price) ||
+        item.price <= 0,
+    )
+  )
+    throw new Error("The order contains invalid menu items.");
+  if (
+    !Number.isFinite(input.subtotal_estimate) ||
+    input.subtotal_estimate < 0 ||
+    input.subtotal_estimate > 10_000_000
+  )
     throw new Error("The order subtotal is invalid.");
-  if (!auth.currentUser) await signInAnonymously(auth);
+  const customerUser = auth.currentUser ?? (await signInAnonymously(auth)).user;
+  if (!customerUser) throw new Error("Could not establish a secure order-tracking session.");
   const request = doc(coll("customer_order_requests"));
   await setDoc(request, {
     ...input,
     customer_name: input.customer_name.trim(),
     customer_phone: input.customer_phone.trim(),
     status: "pending",
+    created_by_uid: customerUser.uid,
     created_at: new Date().toISOString(),
   });
   return request.id;
@@ -412,17 +599,320 @@ export async function updateCustomerOrderRequestStatus(id: string, status: strin
   });
 }
 
-export async function updateOrderStatus(id: string, status: string) {
+export async function convertCustomerOrderRequestToOrder(id: string) {
+  requireFirebaseConfig();
+  const requestRef = refFor("customer_order_requests", id);
+  const counterRef = refFor("counters", "orders");
+  const orderRef = doc(coll("orders"));
+  const requestInitial = await getDoc(requestRef);
+  if (!requestInitial.exists()) throw new Error("This customer request no longer exists.");
+  const initialData = requestInitial.data() as CustomerOrderRequest;
+  if (initialData.converted_order_id)
+    return { id: initialData.converted_order_id, order_no: initialData.converted_order_no ?? 0 };
+  let checkedInBookingId: string | null = null;
+  let checkedInRoomId: string | null = null;
+  if (initialData.order_type === "room") {
+    if (!initialData.order_reference)
+      throw new Error("Choose a room number for this room-service request before accepting it.");
+    const rooms = await getDocs(
+      query(coll("rooms"), where("code", "==", initialData.order_reference)),
+    );
+    const room = rooms.docs.find((item) => item.data()["active"] === true);
+    if (!room) throw new Error("The requested room is not available for room service.");
+    const bookings = await getDocs(coll("bookings"));
+    const checkedInBooking = bookings.docs.find(
+      (item) => item.data()["room_id"] === room.id && item.data()["status"] === "checked_in",
+    );
+    if (!checkedInBooking) throw new Error("No checked-in guest is assigned to that room.");
+    checkedInBookingId = checkedInBooking.id;
+    checkedInRoomId = room.id;
+  }
+  let orderNo = 0;
+  let finalOrderId = orderRef.id;
+  await runTransaction(db, async (transaction) => {
+    const requestSnapshot = await transaction.get(requestRef);
+    if (!requestSnapshot.exists()) throw new Error("This customer request no longer exists.");
+    const request = requestSnapshot.data() as CustomerOrderRequest;
+    if (request.converted_order_id) {
+      finalOrderId = request.converted_order_id;
+      orderNo = request.converted_order_no ?? 0;
+      return;
+    }
+    if (request.status === "cancelled") throw new Error("This customer request was cancelled.");
+    if (!request.items?.length || request.items.length > 30)
+      throw new Error("This request has no valid itemized menu data.");
+    const [counterSnapshot, ...menuSnapshots] = await Promise.all([
+      transaction.get(counterRef),
+      ...request.items.map((item) => transaction.get(refFor("menu_items", item.menu_item_id))),
+    ]);
+    if (checkedInBookingId && checkedInRoomId) {
+      const [bookingSnapshot, roomSnapshot] = await Promise.all([
+        transaction.get(refFor("bookings", checkedInBookingId)),
+        transaction.get(refFor("rooms", checkedInRoomId)),
+      ]);
+      if (
+        !bookingSnapshot.exists() ||
+        bookingSnapshot.data()["status"] !== "checked_in" ||
+        bookingSnapshot.data()["room_id"] !== checkedInRoomId ||
+        !roomSnapshot.exists() ||
+        roomSnapshot.data()["active"] !== true ||
+        roomSnapshot.data()["code"] !== request.order_reference
+      )
+        throw new Error("The guest is no longer checked in to that room.");
+    }
+    const orderItems = request.items.map((item, index) => {
+      if (typeof item.menu_item_id !== "string" || !Number.isSafeInteger(item.qty) || item.qty < 1)
+        throw new Error("This request contains invalid item quantities.");
+      const menuSnapshot = menuSnapshots[index];
+      if (
+        !menuSnapshot?.exists() ||
+        menuSnapshot.data()["available"] !== true ||
+        menuSnapshot.data()["deleted"]
+      )
+        throw new Error("A requested item is no longer available. Contact the customer.");
+      const menu = menuSnapshot.data();
+      if (
+        typeof menu["name"] !== "string" ||
+        !Number.isFinite(Number(menu["price"])) ||
+        Number(menu["price"]) <= 0
+      )
+        throw new Error("A requested menu item has invalid pricing. Contact the customer.");
+      return {
+        menu_item_id: menuSnapshot.id,
+        name: menu["name"] as string,
+        price: Number(menu["price"]),
+        qty: item.qty,
+        id: crypto.randomUUID(),
+        order_id: orderRef.id,
+      };
+    });
+    const subtotal = orderItems.reduce((sum, item) => sum + item.price * item.qty, 0);
+    if (!Number.isFinite(subtotal) || subtotal > 99_999_999.99)
+      throw new Error("The order exceeds the maximum billable amount.");
+    const now = new Date().toISOString();
+    const actor = auth.currentUser?.email ?? auth.currentUser?.uid ?? "staff";
+    orderNo = (counterSnapshot.data()?.["value"] ?? 0) + 1;
+    transaction.set(counterRef, { value: orderNo });
+    transaction.set(orderRef, {
+      order_no: orderNo,
+      order_type: request.order_type,
+      table_no: request.order_type === "dine_in" ? request.order_reference : null,
+      room_code: request.order_type === "room" ? request.order_reference : null,
+      booking_id: checkedInBookingId,
+      customer_name: request.customer_name,
+      customer_phone: request.customer_phone,
+      subtotal,
+      discount: 0,
+      service_charge: 0,
+      tax: 0,
+      total: subtotal,
+      payment_method: "cash",
+      payment_status: "unpaid",
+      paid_amount: 0,
+      cash_received: 0,
+      change_returned: 0,
+      status: "placed",
+      cashier_id: auth.currentUser?.uid ?? null,
+      customer_order_request_id: id,
+      created_at: now,
+      order_status_updated_at: now,
+      status_note: request.notes ?? "",
+      is_closed: false,
+      status_history: [{ status: "placed", at: now, by: actor, note: "Accepted website order" }],
+      payment_history: [],
+      order_items: orderItems,
+    });
+    transaction.update(requestRef, {
+      status: "confirmed",
+      converted_order_id: orderRef.id,
+      converted_order_no: orderNo,
+      converted_total: subtotal,
+      updated_at: now,
+    });
+  });
+  return { id: finalOrderId, order_no: orderNo };
+}
+
+export async function updateOrderStatus(id: string, status: string, note = "") {
   requireFirebaseConfig();
   if (!["placed", "in_prep", "ready", "delivered", "cancelled"].includes(status))
     throw new Error("Choose a valid order status.");
-  await updateDoc(refFor("orders", id), { status, updated_at: new Date().toISOString() });
+  const orderRef = refFor("orders", id);
+  await runTransaction(db, async (transaction) => {
+    const orderSnapshot = await transaction.get(orderRef);
+    if (!orderSnapshot.exists()) throw new Error("This order no longer exists.");
+    const order = orderSnapshot.data() as Order;
+    const requestRef = order.customer_order_request_id
+      ? refFor("customer_order_requests", order.customer_order_request_id)
+      : null;
+    const requestSnapshot = requestRef ? await transaction.get(requestRef) : null;
+    if (order.status === "cancelled" && status !== "cancelled")
+      throw new Error("Cancelled orders cannot be reopened.");
+    const now = new Date().toISOString();
+    const actor = auth.currentUser?.email ?? auth.currentUser?.uid ?? "staff";
+    const history = (order.status_history ?? []).slice(-99);
+    const collected = collectedOrderAmount(order);
+    transaction.update(orderRef, {
+      status,
+      status_note: note.trim(),
+      order_status_updated_at: now,
+      updated_at: now,
+      status_history: [...history, { status, at: now, by: actor, note: note.trim() }],
+      ...(status === "cancelled" && collected > 0
+        ? { payment_status: "refunded", refunded_amount: collected }
+        : {}),
+    });
+    if (requestRef && requestSnapshot?.exists()) {
+      const requestStatus =
+        status === "placed"
+          ? "confirmed"
+          : status === "delivered"
+            ? "completed"
+            : status === "cancelled"
+              ? "cancelled"
+              : status;
+      transaction.update(requestRef, { status: requestStatus, updated_at: now });
+    }
+  });
+}
+
+export async function recordOrderPayment(
+  id: string,
+  amount: number,
+  method: "cash" | "card" | "online",
+) {
+  requireFirebaseConfig();
+  if (method !== "cash" && method !== "card" && method !== "online")
+    throw new Error("Choose a valid payment method.");
+  if (!Number.isFinite(amount) || amount <= 0)
+    throw new Error("Enter a payment amount greater than zero.");
+  const orderRef = refFor("orders", id);
+  await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(orderRef);
+    if (!snapshot.exists()) throw new Error("This order no longer exists.");
+    const order = snapshot.data() as Order;
+    if (order.status === "cancelled") throw new Error("Cancelled orders cannot receive payments.");
+    const totalCents = Math.round(Number(order.total) * 100);
+    const paidCents = Math.round(collectedOrderAmount(order) * 100);
+    const amountCents = Math.round(amount * 100);
+    if (!Number.isSafeInteger(totalCents) || totalCents < 0)
+      throw new Error("This order has an invalid total and cannot receive payments.");
+    if (!Number.isSafeInteger(amountCents) || amountCents <= 0)
+      throw new Error("Enter a payment of at least LKR 0.01.");
+    if (amountCents > totalCents - paidCents)
+      throw new Error("Payment cannot exceed the outstanding balance.");
+    const now = new Date().toISOString();
+    const actor = auth.currentUser?.email ?? auth.currentUser?.uid ?? "staff";
+    const nextPaid = (paidCents + amountCents) / 100;
+    transaction.update(orderRef, {
+      paid_amount: nextPaid,
+      payment_status: paymentStatusFor(totalCents / 100, nextPaid),
+      payment_method: order.payment_method === method ? method : "split",
+      payment_history: [
+        ...(order.payment_history ?? []).slice(-99),
+        { amount: amountCents / 100, method, at: now, by: actor },
+      ],
+      updated_at: now,
+    });
+  });
+}
+
+export async function closeKitchenOrder(id: string) {
+  requireFirebaseConfig();
+  await updateDoc(refFor("orders", id), {
+    is_closed: true,
+    updated_at: new Date().toISOString(),
+  });
 }
 
 export async function getOrders() {
   requireFirebaseConfig();
   const result = await getDocs(query(coll("orders"), orderBy("created_at", "desc")));
   return result.docs.map((item) => withId<Order>(item.id, item.data() as Order));
+}
+
+export async function getPettyCash() {
+  requireFirebaseConfig();
+  const [account, entries] = await Promise.all([
+    getDoc(refFor("petty_cash_accounts", "current")),
+    getDocs(query(coll("petty_cash_entries"), orderBy("created_at", "desc"))),
+  ]);
+  return {
+    balance: Number(account.data()?.["balance"] ?? 0),
+    entries: entries.docs.map((item) =>
+      withId<PettyCashEntry>(item.id, item.data() as PettyCashEntry),
+    ),
+  };
+}
+
+export const subscribeToPettyCash: ChangeListener = (onChange, onError) => {
+  requireFirebaseConfig();
+  let accountInitial = true;
+  let entriesInitial = true;
+  const stopAccount = onSnapshot(
+    refFor("petty_cash_accounts", "current"),
+    () => {
+      if (accountInitial) accountInitial = false;
+      else onChange();
+    },
+    onError,
+  );
+  const stopEntries = onSnapshot(
+    coll("petty_cash_entries"),
+    () => {
+      if (entriesInitial) entriesInitial = false;
+      else onChange();
+    },
+    onError,
+  );
+  return () => {
+    stopAccount();
+    stopEntries();
+  };
+};
+
+export async function recordPettyCashTransaction(input: {
+  kind: "top_up" | "expense";
+  amount: number;
+  reason: string;
+  category: string;
+}) {
+  requireFirebaseConfig();
+  if (!Number.isFinite(input.amount) || Math.round(input.amount * 100) <= 0)
+    throw new Error("Enter an amount of at least LKR 0.01.");
+  if (input.amount > 10_000_000)
+    throw new Error("Petty cash transactions cannot exceed LKR 10,000,000.");
+  if (!input.reason.trim() || !input.category.trim())
+    throw new Error("Enter a reason and category.");
+  if (input.reason.trim().length > 255 || input.category.trim().length > 50)
+    throw new Error("Reason and category must stay within their field limits.");
+  if (input.kind !== "top_up" && input.kind !== "expense")
+    throw new Error("Choose a valid petty-cash transaction type.");
+  const accountRef = refFor("petty_cash_accounts", "current");
+  const entryRef = doc(coll("petty_cash_entries"));
+  await runTransaction(db, async (transaction) => {
+    const account = await transaction.get(accountRef);
+    const balanceCents = Math.round(Number(account.data()?.["balance"] ?? 0) * 100);
+    const amountCents = Math.round(input.amount * 100);
+    const nextBalanceCents =
+      input.kind === "top_up" ? balanceCents + amountCents : balanceCents - amountCents;
+    if (nextBalanceCents < 0)
+      throw new Error("Petty cash balance is not sufficient for this expense.");
+    const now = new Date().toISOString();
+    transaction.set(accountRef, {
+      balance: nextBalanceCents / 100,
+      updated_at: now,
+      updated_by: auth.currentUser?.email ?? auth.currentUser?.uid ?? "staff",
+    });
+    transaction.set(entryRef, {
+      kind: input.kind,
+      amount: amountCents / 100,
+      reason: input.reason.trim(),
+      category: input.category.trim(),
+      created_at: now,
+      created_by: auth.currentUser?.email ?? auth.currentUser?.uid ?? "staff",
+    });
+  });
 }
 
 export async function getBookings(status?: string) {

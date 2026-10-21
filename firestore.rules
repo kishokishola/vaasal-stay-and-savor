@@ -71,9 +71,20 @@ service cloud.firestore {
       allow read, create: if staff();
       allow update: if admin()
         || (staff()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updated_at"])
-          && request.resource.data.status in ["placed", "in_prep", "ready", "delivered", "cancelled"]
-          && request.resource.data.updated_at is string);
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "status", "updated_at", "order_status_updated_at", "status_note", "status_history",
+            "is_closed", "payment_status", "paid_amount", "payment_method", "payment_history",
+            "refunded_amount"
+          ])
+          && (request.resource.data.status == resource.data.status
+            || request.resource.data.status in ["placed", "in_prep", "ready", "delivered", "cancelled"])
+          && request.resource.data.updated_at is string
+          && (!("is_closed" in request.resource.data)
+            || request.resource.data.is_closed is bool)
+          && (!("paid_amount" in request.resource.data)
+            || (request.resource.data.paid_amount is number && request.resource.data.paid_amount >= 0))
+          && (!("payment_status" in request.resource.data)
+            || request.resource.data.payment_status in ["paid", "unpaid", "partial", "refunded"]));
       allow delete: if admin();
     }
 
@@ -81,11 +92,13 @@ service cloud.firestore {
       allow create: if canCreateCustomerOrder()
         && request.resource.data.keys().hasOnly([
           "customer_name", "customer_phone", "order_type", "order_reference",
-          "items_summary", "subtotal_estimate", "notes", "status", "created_at"
+          "items_summary", "items", "subtotal_estimate", "notes", "status", "created_at",
+          "created_by_uid"
         ])
         && request.resource.data.keys().hasAll([
           "customer_name", "customer_phone", "order_type", "order_reference",
-          "items_summary", "subtotal_estimate", "notes", "status", "created_at"
+          "items_summary", "items", "subtotal_estimate", "notes", "status", "created_at",
+          "created_by_uid"
         ])
         && request.resource.data.customer_name is string
         && request.resource.data.customer_name.size() > 0
@@ -103,14 +116,21 @@ service cloud.firestore {
         && request.resource.data.subtotal_estimate is number
         && request.resource.data.subtotal_estimate >= 0
         && request.resource.data.subtotal_estimate <= 10000000
+        && request.resource.data.items is list
+        && request.resource.data.items.size() > 0
+        && request.resource.data.items.size() <= 30
+        && request.resource.data.created_by_uid == request.auth.uid
         && (request.resource.data.notes == null
           || (request.resource.data.notes is string
             && request.resource.data.notes.size() <= 500))
         && request.resource.data.status == "pending"
         && request.resource.data.created_at is string;
-      allow read: if staff();
+      allow read: if staff()
+        || (signedIn() && resource.data.created_by_uid == request.auth.uid);
       allow update: if staff()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updated_at"])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status", "updated_at", "converted_order_id", "converted_order_no", "converted_total"
+        ])
         && request.resource.data.status in [
           "pending", "confirmed", "in_prep", "ready", "completed", "cancelled"
         ]
@@ -120,6 +140,36 @@ service cloud.firestore {
 
     match /counters/{counterId} {
       allow read, write: if staff() && counterId == "orders";
+    }
+
+    match /petty_cash_accounts/{accountId} {
+      allow read: if staff() && accountId == "current";
+      allow create, update: if staff()
+        && accountId == "current"
+        && request.resource.data.balance is number
+        && request.resource.data.balance >= 0
+        && request.resource.data.updated_at is string
+        && request.resource.data.updated_by is string;
+      allow delete: if false;
+    }
+
+    match /petty_cash_entries/{entryId} {
+      allow read: if staff();
+      allow create: if staff()
+        && request.resource.data.kind in ["top_up", "expense"]
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.amount <= 10000000
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() > 0
+        && request.resource.data.reason.size() <= 255
+        && request.resource.data.category is string
+        && request.resource.data.category.size() > 0
+        && request.resource.data.category.size() <= 50
+        && request.resource.data.created_at is string
+        && request.resource.data.created_by is string;
+      allow update: if false;
+      allow delete: if false;
     }
 
     match /staff_access/{email} {

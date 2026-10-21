@@ -10,6 +10,8 @@ import {
   Users,
   LogOut,
   ShoppingCart,
+  ChefHat,
+  Wallet,
 } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/integrations/firebase/client";
@@ -24,13 +26,17 @@ export function StaffShell({ isAdmin, children }: { isAdmin: boolean; children: 
         { to: "/staff/bookings", label: "Bookings", icon: CalendarCheck },
         { to: "/staff/rooms", label: "Rooms", icon: BedDouble },
         { to: "/staff/pos", label: "Restaurant POS", icon: ShoppingCart },
+        { to: "/staff/kitchen", label: "Kitchen Queue", icon: ChefHat },
         { to: "/staff/orders", label: "Orders", icon: Receipt },
+        { to: "/staff/petty-cash", label: "Petty Cash", icon: Wallet },
         { to: "/staff/menu", label: "Menu", icon: UtensilsCrossed },
         { to: "/staff/team", label: "Staff", icon: Users },
       ]
     : [
         { to: "/staff/pos", label: "Restaurant POS", icon: ShoppingCart },
         { to: "/staff/orders", label: "Orders", icon: Receipt },
+        { to: "/staff/kitchen", label: "Kitchen Queue", icon: ChefHat },
+        { to: "/staff/petty-cash", label: "Petty Cash", icon: Wallet },
       ];
   async function logout() {
     await qc.cancelQueries();

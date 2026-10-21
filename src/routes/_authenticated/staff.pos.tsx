@@ -3,7 +3,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Minus, Plus, Trash2, Printer, Search } from "lucide-react";
-import { placeOrder, subscribeToMenuItems } from "@/lib/firebase-data";
+import {
+  getBookings,
+  placeOrder,
+  subscribeToBookings,
+  subscribeToMenuItems,
+} from "@/lib/firebase-data";
 import { getPublicMenuItems } from "@/lib/public-catalog";
 import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
 import { Button } from "@/components/ui/button";
@@ -17,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import type { Booking } from "@/lib/firebase-data";
 import { lkr, orderTotals, HOTEL } from "@/lib/hotel";
 
 export const Route = createFileRoute("/_authenticated/staff/pos")({
@@ -35,7 +41,10 @@ type Receipt = {
   tax: number;
   total: number;
   method: string;
-  paymentStatus: "paid" | "unpaid";
+  paymentStatus: "paid" | "unpaid" | "partial";
+  paidAmount: number;
+  cashReceived: number;
+  changeReturned: number;
   customerName: string;
   customerPhone: string;
   at: string;
@@ -53,16 +62,23 @@ function Pos() {
     queryFn: getPublicMenuItems,
   });
   useFirestoreRealtime(["menu"], subscribeToMenuItems);
+  const { data: inHouseBookings = [] } = useQuery({
+    queryKey: ["in-house-bookings"],
+    queryFn: () => getBookings("checked_in"),
+  });
+  useFirestoreRealtime(["in-house-bookings"], subscribeToBookings);
   const [cat, setCat] = useState("All");
   const [q, setQ] = useState("");
   const [cart, setCart] = useState<Line[]>([]);
-  const [type, setType] = useState("dine_in");
+  const [type, setType] = useState<"dine_in" | "takeaway" | "room">("dine_in");
   const [ref, setRef] = useState("");
-  const [discount, setDiscount] = useState(0);
+  const [discountPct, setDiscountPct] = useState(0);
   const [servicePct, setServicePct] = useState(10);
   const [taxPct, setTaxPct] = useState(0);
-  const [method, setMethod] = useState("cash");
-  const [paymentStatus, setPaymentStatus] = useState<"paid" | "unpaid">("paid");
+  const [method, setMethod] = useState<"cash" | "card" | "online" | "room_bill" | "no_pay">("cash");
+  const [paymentStatus, setPaymentStatus] = useState<"paid" | "unpaid" | "partial">("paid");
+  const [partialPaid, setPartialPaid] = useState(0);
+  const [cashReceived, setCashReceived] = useState(0);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [busy, setBusy] = useState(false);
@@ -73,8 +89,29 @@ function Pos() {
   const shown = avail.filter(
     (m) => (cat === "All" || m.category === cat) && m.name.toLowerCase().includes(q.toLowerCase()),
   );
-  const subtotal = useMemo(() => cart.reduce((s, l) => s + l.price * l.qty, 0), [cart]);
-  const t = orderTotals(subtotal, Math.min(discount, subtotal), servicePct, taxPct);
+  const currentCart = useMemo(
+    () =>
+      cart.map((line) => {
+        const currentItem = menu?.find((item) => item.id === line.id);
+        return currentItem
+          ? { ...line, name: currentItem.name, price: Number(currentItem.price) }
+          : line;
+      }),
+    [cart, menu],
+  );
+  const subtotal = useMemo(
+    () => currentCart.reduce((sum, line) => sum + line.price * line.qty, 0),
+    [currentCart],
+  );
+  const discount = Math.round(subtotal * discountPct) / 100;
+  const t = orderTotals(subtotal, discount, servicePct, taxPct);
+  const paidAmount =
+    method === "room_bill" || method === "no_pay" || paymentStatus === "unpaid"
+      ? 0
+      : paymentStatus === "partial"
+        ? Math.max(0, Math.min(partialPaid, t.total))
+        : t.total;
+  const changeReturned = method === "cash" ? Math.max(0, cashReceived - paidAmount) : 0;
 
   const add = (m: { id: string; name: string; price: number }) =>
     setCart((c) => {
@@ -97,12 +134,27 @@ function Pos() {
       toast.error("Enter the customer name.");
       return;
     }
-    if (discount < 0 || discount > subtotal) {
-      toast.error("Discount cannot be greater than the subtotal.");
+    if (type === "room" && !inHouseBookings.some((booking) => booking.room_code === ref)) {
+      toast.error("Choose a room with a checked-in guest.");
       return;
     }
-    if (servicePct < 0 || servicePct > 100 || taxPct < 0 || taxPct > 100) {
-      toast.error("Service charge and tax must be between 0% and 100%.");
+    if (
+      discountPct < 0 ||
+      discountPct > 100 ||
+      servicePct < 0 ||
+      servicePct > 100 ||
+      taxPct < 0 ||
+      taxPct > 100
+    ) {
+      toast.error("Discount, service charge and tax must be between 0% and 100%.");
+      return;
+    }
+    if (paymentStatus === "partial" && (partialPaid <= 0 || partialPaid >= t.total)) {
+      toast.error("A partial payment must be greater than zero and less than the total.");
+      return;
+    }
+    if (method === "cash" && cashReceived < paidAmount) {
+      toast.error("Cash received cannot be less than the amount paid.");
       return;
     }
     setBusy(true);
@@ -111,20 +163,22 @@ function Pos() {
         order_type: type,
         table_no: type === "dine_in" ? ref || null : null,
         room_code: type === "room" ? ref || null : null,
+        booking_id:
+          type === "room"
+            ? (inHouseBookings.find((booking) => booking.room_code === ref)?.id ?? null)
+            : null,
         customer_name: customerName,
         customer_phone: customerPhone,
-        subtotal,
-        discount,
-        service_charge: t.service,
-        tax: t.tax,
-        total: t.total,
+        discount_pct: discountPct,
+        service_pct: servicePct,
+        tax_pct: taxPct,
         payment_method: method,
-        payment_status: type === "room" && method === "room_bill" ? "unpaid" : paymentStatus,
+        payment_status: paymentStatus,
+        paid_amount: paidAmount,
+        cash_received: method === "cash" ? cashReceived : 0,
         status: "placed",
-        items: cart.map((line) => ({
+        items: currentCart.map((line) => ({
           menu_item_id: line.id,
-          name: line.name,
-          price: line.price,
           qty: line.qty,
         })),
       });
@@ -132,25 +186,34 @@ function Pos() {
         no: order.order_no,
         type,
         ref,
-        lines: cart,
-        subtotal,
-        discount,
-        service: t.service,
-        tax: t.tax,
-        total: t.total,
+        lines: order.items,
+        subtotal: order.subtotal,
+        discount: order.discount,
+        service: order.service_charge,
+        tax: order.tax,
+        total: order.total,
         method,
-        paymentStatus: type === "room" && method === "room_bill" ? "unpaid" : paymentStatus,
+        paymentStatus:
+          order.payment_status === "partial" || order.payment_status === "unpaid"
+            ? order.payment_status
+            : "paid",
+        paidAmount: order.paid_amount,
+        cashReceived: method === "cash" ? cashReceived : order.paid_amount,
+        changeReturned,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         at: new Date().toLocaleString(),
       });
       setCart([]);
-      setDiscount(0);
+      setDiscountPct(0);
       setTaxPct(0);
+      setCashReceived(0);
+      setPartialPaid(0);
       setRef("");
       setCustomerName("");
       setCustomerPhone("");
       setPaymentStatus("paid");
+      if (method === "room_bill" || method === "no_pay") setMethod("cash");
       qc.invalidateQueries({ queryKey: ["orders"] });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not save the order.");
@@ -228,8 +291,13 @@ function Pos() {
             <Select
               value={type}
               onValueChange={(v) => {
+                if (v !== "dine_in" && v !== "takeaway" && v !== "room") return;
                 setType(v);
-                if (v !== "room" && method === "room_bill") setMethod("cash");
+                setRef("");
+                if (v !== "room" && method === "room_bill") {
+                  setMethod("cash");
+                  setPaymentStatus("paid");
+                }
               }}
             >
               <SelectTrigger>
@@ -242,18 +310,49 @@ function Pos() {
               </SelectContent>
             </Select>
           </div>
-          {type !== "takeaway" && (
+          {type === "room" ? (
             <div>
-              <Label>{type === "room" ? "Room no." : "Table no."}</Label>
+              <Label>Checked-in room</Label>
+              <Select
+                value={ref}
+                onValueChange={(roomCode) => {
+                  setRef(roomCode);
+                  const booking = inHouseBookings.find((item) => item.room_code === roomCode);
+                  if (booking) {
+                    setCustomerName(booking.guest_name);
+                    setCustomerPhone(booking.guest_phone);
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select room" />
+                </SelectTrigger>
+                <SelectContent>
+                  {inHouseBookings.map((booking: Booking) => (
+                    <SelectItem key={booking.id} value={booking.room_code}>
+                      {booking.room_code} — {booking.guest_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!inHouseBookings.length && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  No checked-in rooms are available for room service.
+                </p>
+              )}
+            </div>
+          ) : type === "dine_in" ? (
+            <div>
+              <Label>Table no.</Label>
               <Input value={ref} onChange={(e) => setRef(e.target.value)} />
             </div>
-          )}
+          ) : null}
         </div>
         <div className="mt-5 max-h-72 space-y-3 overflow-y-auto">
           {!cart.length && (
             <p className="text-sm text-muted-foreground">Tap menu items to add them.</p>
           )}
-          {cart.map((l) => (
+          {currentCart.map((l) => (
             <div key={l.id} className="flex items-center gap-2 text-sm">
               <div className="flex-1">
                 <div>{l.name}</div>
@@ -308,14 +407,14 @@ function Pos() {
         </div>
         <div className="mt-5 grid grid-cols-2 gap-3 border-t border-border pt-4">
           <div>
-            <Label>Discount (LKR)</Label>
+            <Label>Discount (%)</Label>
             <Input
               type="number"
               min={0}
-              max={subtotal}
+              max={100}
               step="0.01"
-              value={discount}
-              onChange={(e) => setDiscount(Number(e.target.value) || 0)}
+              value={discountPct}
+              onChange={(e) => setDiscountPct(Number(e.target.value) || 0)}
             />
           </div>
           <div>
@@ -323,6 +422,7 @@ function Pos() {
             <Input
               type="number"
               min={0}
+              max={100}
               value={servicePct}
               onChange={(e) => setServicePct(Number(e.target.value) || 0)}
             />
@@ -351,7 +451,21 @@ function Pos() {
         </div>
         <div className="mt-4">
           <Label>Payment</Label>
-          <Select value={method} onValueChange={setMethod}>
+          <Select
+            value={method}
+            onValueChange={(value) => {
+              if (
+                value === "cash" ||
+                value === "card" ||
+                value === "online" ||
+                value === "room_bill" ||
+                value === "no_pay"
+              )
+                setMethod(value);
+              if (value === "room_bill" || value === "no_pay") setPaymentStatus("unpaid");
+              else if (paymentStatus === "unpaid") setPaymentStatus("paid");
+            }}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -359,25 +473,56 @@ function Pos() {
               <SelectItem value="cash">Cash</SelectItem>
               <SelectItem value="card">Card</SelectItem>
               <SelectItem value="online">Online</SelectItem>
+              <SelectItem value="no_pay">No payment / pay later</SelectItem>
               {type === "room" && <SelectItem value="room_bill">Charge to room</SelectItem>}
             </SelectContent>
           </Select>
         </div>
-        {!(type === "room" && method === "room_bill") && (
+        {method !== "room_bill" && method !== "no_pay" && (
           <div className="mt-3">
             <Label>Payment status</Label>
             <Select
               value={paymentStatus}
-              onValueChange={(value: "paid" | "unpaid") => setPaymentStatus(value)}
+              onValueChange={(value) => {
+                if (value === "paid" || value === "unpaid" || value === "partial")
+                  setPaymentStatus(value);
+              }}
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="paid">Paid</SelectItem>
+                <SelectItem value="partial">Partially paid</SelectItem>
                 <SelectItem value="unpaid">Unpaid</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+        )}
+        {paymentStatus === "partial" && method !== "room_bill" && method !== "no_pay" && (
+          <div className="mt-3">
+            <Label>Amount paid now (LKR)</Label>
+            <Input
+              type="number"
+              min={0.01}
+              max={t.total}
+              step="0.01"
+              value={partialPaid}
+              onChange={(event) => setPartialPaid(Number(event.target.value) || 0)}
+            />
+          </div>
+        )}
+        {method === "cash" && paidAmount > 0 && (
+          <div className="mt-3">
+            <Label>Cash received (LKR)</Label>
+            <Input
+              type="number"
+              min={paidAmount}
+              step="0.01"
+              value={cashReceived}
+              onChange={(event) => setCashReceived(Number(event.target.value) || 0)}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">Change: {lkr(changeReturned)}</p>
           </div>
         )}
         <Button
@@ -426,6 +571,10 @@ function Pos() {
                 </div>
                 <Row l="Paid by" v={receipt.method.replace("_", " ")} />
                 <Row l="Payment status" v={receipt.paymentStatus} />
+                <Row l="Paid" v={lkr(receipt.paidAmount)} />
+                {receipt.cashReceived > receipt.paidAmount && (
+                  <Row l="Change" v={lkr(receipt.changeReturned)} />
+                )}
               </div>
               <div className="pt-2 text-center">Thank you — come again!</div>
             </div>

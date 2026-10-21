@@ -1,15 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { onAuthStateChanged } from "firebase/auth";
 import { getPublicMenuItems } from "@/lib/public-catalog";
 import { SiteLayout, PageHero } from "@/components/site/SiteLayout";
 import { lkr, publicAsset } from "@/lib/hotel";
 import type { CustomerOrderRequest, MenuItem } from "@/lib/firebase-data";
-import { createCustomerOrderRequest } from "@/lib/firebase-data";
+import { createCustomerOrderRequest, subscribeToCustomerOrderRequest } from "@/lib/firebase-data";
 import { subscribeToMenuItems } from "@/lib/firebase-data";
 import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
+import { auth } from "@/integrations/firebase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,6 +56,12 @@ function Dining() {
   const [orderReference, setOrderReference] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [trackingUid, setTrackingUid] = useState<string | null>(null);
+  const [trackedIds, setTrackedIds] = useState<string[]>([]);
+  const [trackedOrders, setTrackedOrders] = useState<Record<string, CustomerOrderRequest | null>>(
+    {},
+  );
+  const [trackingErrors, setTrackingErrors] = useState<Record<string, string>>({});
   const items = (data ?? []).filter((item) => item.available && !item.deleted);
   const groups = items.reduce<Record<string, MenuItem[]>>((acc, m) => {
     (acc[m.category] ||= [] as never).push(m);
@@ -63,6 +71,46 @@ function Dining() {
     () => cart.reduce((total, line) => total + Number(line.item.price) * line.qty, 0),
     [cart],
   );
+  useEffect(
+    () =>
+      onAuthStateChanged(auth, (user) => {
+        setTrackingUid(user?.uid ?? null);
+        if (!user) {
+          setTrackedIds([]);
+          return;
+        }
+        try {
+          const saved = window.localStorage.getItem(`vaasal-villa:dining-orders:${user.uid}`);
+          const parsed: unknown = saved ? JSON.parse(saved) : [];
+          setTrackedIds(
+            Array.isArray(parsed) && parsed.every((id) => typeof id === "string")
+              ? parsed.slice(0, 10)
+              : [],
+          );
+        } catch (error) {
+          console.error("Could not restore saved dining order references.", error);
+          setTrackedIds([]);
+        }
+      }),
+    [],
+  );
+  useEffect(() => {
+    if (!trackingUid || !trackedIds.length) return;
+    const stop = trackedIds.map((id) =>
+      subscribeToCustomerOrderRequest(
+        id,
+        (request) => {
+          setTrackedOrders((current) => ({ ...current, [id]: request }));
+          setTrackingErrors((current) => ({ ...current, [id]: "" }));
+        },
+        (error) => {
+          console.error(`Could not follow dining order ${id}.`, error);
+          setTrackingErrors((current) => ({ ...current, [id]: error.message }));
+        },
+      ),
+    );
+    return () => stop.forEach((unsubscribe) => unsubscribe());
+  }, [trackingUid, trackedIds]);
   function add(item: MenuItem) {
     setCart((current) => {
       const existing = current.find((line) => line.item.id === item.id);
@@ -87,6 +135,10 @@ function Dining() {
       toast.error("Enter your name and phone number to continue.");
       return;
     }
+    if (orderType === "room" && !orderReference.trim()) {
+      toast.error("Enter your room number for room service.");
+      return;
+    }
     setSubmitting(true);
     try {
       const requestId = await createCustomerOrderRequest({
@@ -97,9 +149,26 @@ function Dining() {
         items_summary: cart
           .map(({ item, qty }) => `${qty} x ${item.name} — ${lkr(Number(item.price) * qty)}`)
           .join("\n"),
+        items: cart.map(({ item, qty }) => ({
+          menu_item_id: item.id,
+          name: item.name,
+          price: Number(item.price),
+          qty,
+        })),
         subtotal_estimate: subtotal,
         notes: notes.trim() || null,
       });
+      const uid = auth.currentUser?.uid;
+      if (uid) {
+        const next = [requestId, ...trackedIds.filter((id) => id !== requestId)].slice(0, 10);
+        try {
+          window.localStorage.setItem(`vaasal-villa:dining-orders:${uid}`, JSON.stringify(next));
+        } catch (error) {
+          console.error("Could not save dining order references on this device.", error);
+        }
+        setTrackingUid(uid);
+        setTrackedIds(next);
+      }
       setCart([]);
       setNotes("");
       toast.success(`Order request received. Reference: ${requestId.slice(0, 8)}`);
@@ -283,6 +352,7 @@ function Dining() {
                       maxLength={40}
                       value={orderReference}
                       onChange={(event) => setOrderReference(event.target.value)}
+                      required={orderType === "room"}
                     />
                   </div>
                 )}
@@ -312,6 +382,46 @@ function Dining() {
                 </p>
               </div>
             </div>
+          </section>
+        )}
+        {trackedIds.length > 0 && (
+          <section className="mt-8 bg-card p-6 shadow-luxe" aria-live="polite">
+            <div className="eyebrow">Live updates</div>
+            <h2 className="mt-2 font-display text-2xl">Your order status</h2>
+            <ul className="mt-4 space-y-3">
+              {trackedIds.map((id) => {
+                const request = trackedOrders[id];
+                return (
+                  <li key={id} className="border-t border-border pt-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-mono text-sm">
+                        Order {id.slice(0, 8).toUpperCase()}
+                      </span>
+                      <span className="text-sm font-medium text-primary">
+                        {request?.status?.replace("_", " ") ?? "Checking status…"}
+                      </span>
+                    </div>
+                    {request?.converted_order_no && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        POS ticket #{request.converted_order_no}
+                        {request.converted_total !== undefined &&
+                          ` · Confirmed total ${lkr(request.converted_total)}`}
+                      </p>
+                    )}
+                    {request && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {request.items_summary.replaceAll("\n", " · ")}
+                      </p>
+                    )}
+                    {trackingErrors[id] && (
+                      <p role="alert" className="mt-1 text-xs text-destructive">
+                        Status is temporarily unavailable: {trackingErrors[id]}
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           </section>
         )}
       </section>
