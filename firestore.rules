@@ -32,11 +32,14 @@ service cloud.firestore {
     }
 
     match /bookings/{bookingId} {
-      allow create: if request.resource.data.keys().hasOnly([
+      allow create: if staff() || (request.resource.data.keys().hasOnly([
           "room_id", "guest_name", "guest_email", "guest_phone", "check_in",
-          "check_out", "guests", "notes", "total", "status", "created_at"
+          "check_out", "guests", "notes", "total", "status", "created_at",
+          "rate_currency", "rate_period", "paid_amount", "payment_status", "payment_history",
+          "created_by_uid"
         ])
         && request.resource.data.status == "pending"
+        && request.resource.data.created_by_uid == request.auth.uid
         && request.resource.data.room_id is string
         && exists(/databases/$(database)/documents/rooms/$(request.resource.data.room_id))
         && get(/databases/$(database)/documents/rooms/$(request.resource.data.room_id)).data.active == true
@@ -57,9 +60,17 @@ service cloud.firestore {
         && request.resource.data.guests <= get(/databases/$(database)/documents/rooms/$(request.resource.data.room_id)).data.capacity
         && request.resource.data.total is number
         && request.resource.data.total >= 0
+        && request.resource.data.rate_currency in ["LKR", "USD"]
+        && request.resource.data.rate_period in ["night", "day"]
+        && request.resource.data.paid_amount == 0
+        && request.resource.data.payment_status == "unpaid"
+        && request.resource.data.payment_history is list
+        && request.resource.data.payment_history.size() == 0
         && (request.resource.data.notes == null || request.resource.data.notes is string)
-        && request.resource.data.created_at is string;
-      allow read, update, delete: if staff();
+        && request.resource.data.created_at is string);
+      allow read: if staff()
+        || (signedIn() && resource.data.created_by_uid == request.auth.uid);
+      allow update, delete: if staff();
     }
 
     match /room_night_locks/{lockId} {
@@ -177,6 +188,38 @@ service cloud.firestore {
         || (signedIn()
           && request.auth.token.email.lower() == email);
       allow create, update, delete: if admin();
+    }
+
+    match /site_settings/{settingsId} {
+      allow read: if settingsId == "public";
+      allow create, update: if admin() && settingsId == "public";
+      allow delete: if false;
+    }
+
+    match /contact_messages/{messageId} {
+      allow create: if canCreateCustomerOrder()
+        && request.resource.data.keys().hasOnly([
+          "name", "email", "phone", "message", "status", "created_by_uid", "created_at"
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.email is string
+        && request.resource.data.email.size() > 0
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() <= 40
+        && request.resource.data.message is string
+        && request.resource.data.message.size() > 0
+        && request.resource.data.message.size() <= 4000
+        && request.resource.data.created_by_uid == request.auth.uid
+        && request.resource.data.status == "new"
+        && request.resource.data.created_at is string;
+      allow read: if staff();
+      allow update: if staff()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status"])
+        && request.resource.data.status in ["new", "read"];
+      allow delete: if admin();
     }
   }
 }

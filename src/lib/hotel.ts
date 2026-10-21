@@ -5,10 +5,37 @@ export const HOTEL = {
   whatsapp: "94764658567",
   email: "stay@vaasalvilla.lk",
   address: "Jaffna, Northern Province, Sri Lanka",
+  facebook: "",
+  instagram: "",
+  twitter: "",
+  youtube: "",
 };
 
 export const lkr = (n: number | string) =>
   "LKR " + Number(n).toLocaleString("en-LK", { maximumFractionDigits: 2 });
+
+export function rateAmount(amount: number | string, currency?: string) {
+  const value = Number(amount);
+  return currency === "USD"
+    ? `USD ${value.toLocaleString("en-US", { maximumFractionDigits: 2 })}`
+    : lkr(value);
+}
+
+export function roomRate(
+  room: {
+    price: number;
+    price_local?: number;
+    price_foreign?: number;
+    day_rate_local?: number;
+    day_rate_foreign?: number;
+  },
+  currency: "LKR" | "USD",
+  period: "night" | "day",
+) {
+  if (period === "night")
+    return currency === "USD" ? (room.price_foreign ?? 0) : (room.price_local ?? room.price);
+  return currency === "USD" ? (room.day_rate_foreign ?? 0) : (room.day_rate_local ?? room.price);
+}
 
 export function publicAsset(path: string) {
   if (/^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(path)) return path;

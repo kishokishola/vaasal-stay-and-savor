@@ -15,17 +15,23 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as DiningRouteImport } from './routes/dining'
+import { Route as ServicesRouteImport } from './routes/services'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AuthenticatedStaffRouteImport } from './routes/_authenticated/staff'
 import { Route as RoomsIndexRouteImport } from './routes/rooms.index'
 import { Route as RoomsCodeRouteImport } from './routes/rooms.$code'
 import { Route as AuthenticatedStaffIndexRouteImport } from './routes/_authenticated/staff.index'
 import { Route as AuthenticatedStaffBookingsRouteImport } from './routes/_authenticated/staff.bookings'
+import { Route as AuthenticatedStaffCalendarRouteImport } from './routes/_authenticated/staff.calendar'
+import { Route as AuthenticatedStaffCreateBookingRouteImport } from './routes/_authenticated/staff.create-booking'
 import { Route as AuthenticatedStaffKitchenRouteImport } from './routes/_authenticated/staff.kitchen'
 import { Route as AuthenticatedStaffMenuRouteImport } from './routes/_authenticated/staff.menu'
 import { Route as AuthenticatedStaffOrdersRouteImport } from './routes/_authenticated/staff.orders'
+import { Route as AuthenticatedStaffPaymentsRouteImport } from './routes/_authenticated/staff.payments'
 import { Route as AuthenticatedStaffPettyCashRouteImport } from './routes/_authenticated/staff.petty-cash'
 import { Route as AuthenticatedStaffPosRouteImport } from './routes/_authenticated/staff.pos'
 import { Route as AuthenticatedStaffRoomsRouteImport } from './routes/_authenticated/staff.rooms'
+import { Route as AuthenticatedStaffSettingsRouteImport } from './routes/_authenticated/staff.settings'
 import { Route as AuthenticatedStaffTeamRouteImport } from './routes/_authenticated/staff.team'
 
 const IndexRoute = IndexRouteImport.update({
@@ -57,6 +63,16 @@ const DiningRoute = DiningRouteImport.update({
   path: '/dining',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ServicesRoute = ServicesRouteImport.update({
+  id: '/services',
+  path: '/services',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedStaffRoute = AuthenticatedStaffRouteImport.update({
   id: '/staff',
   path: '/staff',
@@ -83,6 +99,18 @@ const AuthenticatedStaffBookingsRoute =
     path: '/bookings',
     getParentRoute: () => AuthenticatedStaffRoute,
   } as any)
+const AuthenticatedStaffCalendarRoute =
+  AuthenticatedStaffCalendarRouteImport.update({
+    id: '/calendar',
+    path: '/calendar',
+    getParentRoute: () => AuthenticatedStaffRoute,
+  } as any)
+const AuthenticatedStaffCreateBookingRoute =
+  AuthenticatedStaffCreateBookingRouteImport.update({
+    id: '/create-booking',
+    path: '/create-booking',
+    getParentRoute: () => AuthenticatedStaffRoute,
+  } as any)
 const AuthenticatedStaffKitchenRoute =
   AuthenticatedStaffKitchenRouteImport.update({
     id: '/kitchen',
@@ -98,6 +126,12 @@ const AuthenticatedStaffOrdersRoute =
   AuthenticatedStaffOrdersRouteImport.update({
     id: '/orders',
     path: '/orders',
+    getParentRoute: () => AuthenticatedStaffRoute,
+  } as any)
+const AuthenticatedStaffPaymentsRoute =
+  AuthenticatedStaffPaymentsRouteImport.update({
+    id: '/payments',
+    path: '/payments',
     getParentRoute: () => AuthenticatedStaffRoute,
   } as any)
 const AuthenticatedStaffPettyCashRoute =
@@ -116,6 +150,12 @@ const AuthenticatedStaffRoomsRoute = AuthenticatedStaffRoomsRouteImport.update({
   path: '/rooms',
   getParentRoute: () => AuthenticatedStaffRoute,
 } as any)
+const AuthenticatedStaffSettingsRoute =
+  AuthenticatedStaffSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedStaffRoute,
+  } as any)
 const AuthenticatedStaffTeamRoute = AuthenticatedStaffTeamRouteImport.update({
   id: '/team',
   path: '/team',
@@ -128,16 +168,22 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
   '/dining': typeof DiningRoute
+  '/services': typeof ServicesRoute
+  '/terms': typeof TermsRoute
   '/staff': typeof AuthenticatedStaffRouteWithChildren
   '/rooms/$code': typeof RoomsCodeRoute
   '/rooms/': typeof RoomsIndexRoute
   '/staff/bookings': typeof AuthenticatedStaffBookingsRoute
+  '/staff/calendar': typeof AuthenticatedStaffCalendarRoute
+  '/staff/create-booking': typeof AuthenticatedStaffCreateBookingRoute
   '/staff/kitchen': typeof AuthenticatedStaffKitchenRoute
   '/staff/menu': typeof AuthenticatedStaffMenuRoute
   '/staff/orders': typeof AuthenticatedStaffOrdersRoute
+  '/staff/payments': typeof AuthenticatedStaffPaymentsRoute
   '/staff/petty-cash': typeof AuthenticatedStaffPettyCashRoute
   '/staff/pos': typeof AuthenticatedStaffPosRoute
   '/staff/rooms': typeof AuthenticatedStaffRoomsRoute
+  '/staff/settings': typeof AuthenticatedStaffSettingsRoute
   '/staff/team': typeof AuthenticatedStaffTeamRoute
   '/staff/': typeof AuthenticatedStaffIndexRoute
 }
@@ -147,15 +193,21 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
   '/dining': typeof DiningRoute
+  '/services': typeof ServicesRoute
+  '/terms': typeof TermsRoute
   '/rooms/$code': typeof RoomsCodeRoute
   '/rooms': typeof RoomsIndexRoute
   '/staff/bookings': typeof AuthenticatedStaffBookingsRoute
+  '/staff/calendar': typeof AuthenticatedStaffCalendarRoute
+  '/staff/create-booking': typeof AuthenticatedStaffCreateBookingRoute
   '/staff/kitchen': typeof AuthenticatedStaffKitchenRoute
   '/staff/menu': typeof AuthenticatedStaffMenuRoute
   '/staff/orders': typeof AuthenticatedStaffOrdersRoute
+  '/staff/payments': typeof AuthenticatedStaffPaymentsRoute
   '/staff/petty-cash': typeof AuthenticatedStaffPettyCashRoute
   '/staff/pos': typeof AuthenticatedStaffPosRoute
   '/staff/rooms': typeof AuthenticatedStaffRoomsRoute
+  '/staff/settings': typeof AuthenticatedStaffSettingsRoute
   '/staff/team': typeof AuthenticatedStaffTeamRoute
   '/staff': typeof AuthenticatedStaffIndexRoute
 }
@@ -167,16 +219,22 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
   '/dining': typeof DiningRoute
+  '/services': typeof ServicesRoute
+  '/terms': typeof TermsRoute
   '/_authenticated/staff': typeof AuthenticatedStaffRouteWithChildren
   '/rooms/$code': typeof RoomsCodeRoute
   '/rooms/': typeof RoomsIndexRoute
   '/_authenticated/staff/bookings': typeof AuthenticatedStaffBookingsRoute
+  '/_authenticated/staff/calendar': typeof AuthenticatedStaffCalendarRoute
+  '/_authenticated/staff/create-booking': typeof AuthenticatedStaffCreateBookingRoute
   '/_authenticated/staff/kitchen': typeof AuthenticatedStaffKitchenRoute
   '/_authenticated/staff/menu': typeof AuthenticatedStaffMenuRoute
   '/_authenticated/staff/orders': typeof AuthenticatedStaffOrdersRoute
+  '/_authenticated/staff/payments': typeof AuthenticatedStaffPaymentsRoute
   '/_authenticated/staff/petty-cash': typeof AuthenticatedStaffPettyCashRoute
   '/_authenticated/staff/pos': typeof AuthenticatedStaffPosRoute
   '/_authenticated/staff/rooms': typeof AuthenticatedStaffRoomsRoute
+  '/_authenticated/staff/settings': typeof AuthenticatedStaffSettingsRoute
   '/_authenticated/staff/team': typeof AuthenticatedStaffTeamRoute
   '/_authenticated/staff/': typeof AuthenticatedStaffIndexRoute
 }
@@ -188,16 +246,22 @@ export interface FileRouteTypes {
     | '/auth'
     | '/contact'
     | '/dining'
+    | '/services'
+    | '/terms'
     | '/staff'
     | '/rooms/$code'
     | '/rooms/'
     | '/staff/bookings'
+    | '/staff/calendar'
+    | '/staff/create-booking'
     | '/staff/kitchen'
     | '/staff/menu'
     | '/staff/orders'
+    | '/staff/payments'
     | '/staff/petty-cash'
     | '/staff/pos'
     | '/staff/rooms'
+    | '/staff/settings'
     | '/staff/team'
     | '/staff/'
   fileRoutesByTo: FileRoutesByTo
@@ -207,15 +271,21 @@ export interface FileRouteTypes {
     | '/auth'
     | '/contact'
     | '/dining'
+    | '/services'
+    | '/terms'
     | '/rooms/$code'
     | '/rooms'
     | '/staff/bookings'
+    | '/staff/calendar'
+    | '/staff/create-booking'
     | '/staff/kitchen'
     | '/staff/menu'
     | '/staff/orders'
+    | '/staff/payments'
     | '/staff/petty-cash'
     | '/staff/pos'
     | '/staff/rooms'
+    | '/staff/settings'
     | '/staff/team'
     | '/staff'
   id:
@@ -226,16 +296,22 @@ export interface FileRouteTypes {
     | '/auth'
     | '/contact'
     | '/dining'
+    | '/services'
+    | '/terms'
     | '/_authenticated/staff'
     | '/rooms/$code'
     | '/rooms/'
     | '/_authenticated/staff/bookings'
+    | '/_authenticated/staff/calendar'
+    | '/_authenticated/staff/create-booking'
     | '/_authenticated/staff/kitchen'
     | '/_authenticated/staff/menu'
     | '/_authenticated/staff/orders'
+    | '/_authenticated/staff/payments'
     | '/_authenticated/staff/petty-cash'
     | '/_authenticated/staff/pos'
     | '/_authenticated/staff/rooms'
+    | '/_authenticated/staff/settings'
     | '/_authenticated/staff/team'
     | '/_authenticated/staff/'
   fileRoutesById: FileRoutesById
@@ -247,6 +323,8 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ContactRoute: typeof ContactRoute
   DiningRoute: typeof DiningRoute
+  ServicesRoute: typeof ServicesRoute
+  TermsRoute: typeof TermsRoute
   RoomsCodeRoute: typeof RoomsCodeRoute
   RoomsIndexRoute: typeof RoomsIndexRoute
 }
@@ -295,6 +373,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DiningRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/services': {
+      id: '/services'
+      path: '/services'
+      fullPath: '/services'
+      preLoaderRoute: typeof ServicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/staff': {
       id: '/_authenticated/staff'
       path: '/staff'
@@ -330,6 +422,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStaffBookingsRouteImport
       parentRoute: typeof AuthenticatedStaffRoute
     }
+    '/_authenticated/staff/calendar': {
+      id: '/_authenticated/staff/calendar'
+      path: '/calendar'
+      fullPath: '/staff/calendar'
+      preLoaderRoute: typeof AuthenticatedStaffCalendarRouteImport
+      parentRoute: typeof AuthenticatedStaffRoute
+    }
+    '/_authenticated/staff/create-booking': {
+      id: '/_authenticated/staff/create-booking'
+      path: '/create-booking'
+      fullPath: '/staff/create-booking'
+      preLoaderRoute: typeof AuthenticatedStaffCreateBookingRouteImport
+      parentRoute: typeof AuthenticatedStaffRoute
+    }
     '/_authenticated/staff/kitchen': {
       id: '/_authenticated/staff/kitchen'
       path: '/kitchen'
@@ -349,6 +455,13 @@ declare module '@tanstack/react-router' {
       path: '/orders'
       fullPath: '/staff/orders'
       preLoaderRoute: typeof AuthenticatedStaffOrdersRouteImport
+      parentRoute: typeof AuthenticatedStaffRoute
+    }
+    '/_authenticated/staff/payments': {
+      id: '/_authenticated/staff/payments'
+      path: '/payments'
+      fullPath: '/staff/payments'
+      preLoaderRoute: typeof AuthenticatedStaffPaymentsRouteImport
       parentRoute: typeof AuthenticatedStaffRoute
     }
     '/_authenticated/staff/petty-cash': {
@@ -372,6 +485,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStaffRoomsRouteImport
       parentRoute: typeof AuthenticatedStaffRoute
     }
+    '/_authenticated/staff/settings': {
+      id: '/_authenticated/staff/settings'
+      path: '/settings'
+      fullPath: '/staff/settings'
+      preLoaderRoute: typeof AuthenticatedStaffSettingsRouteImport
+      parentRoute: typeof AuthenticatedStaffRoute
+    }
     '/_authenticated/staff/team': {
       id: '/_authenticated/staff/team'
       path: '/team'
@@ -384,24 +504,32 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedStaffRouteChildren {
   AuthenticatedStaffBookingsRoute: typeof AuthenticatedStaffBookingsRoute
+  AuthenticatedStaffCalendarRoute: typeof AuthenticatedStaffCalendarRoute
+  AuthenticatedStaffCreateBookingRoute: typeof AuthenticatedStaffCreateBookingRoute
   AuthenticatedStaffKitchenRoute: typeof AuthenticatedStaffKitchenRoute
   AuthenticatedStaffMenuRoute: typeof AuthenticatedStaffMenuRoute
   AuthenticatedStaffOrdersRoute: typeof AuthenticatedStaffOrdersRoute
+  AuthenticatedStaffPaymentsRoute: typeof AuthenticatedStaffPaymentsRoute
   AuthenticatedStaffPettyCashRoute: typeof AuthenticatedStaffPettyCashRoute
   AuthenticatedStaffPosRoute: typeof AuthenticatedStaffPosRoute
   AuthenticatedStaffRoomsRoute: typeof AuthenticatedStaffRoomsRoute
+  AuthenticatedStaffSettingsRoute: typeof AuthenticatedStaffSettingsRoute
   AuthenticatedStaffTeamRoute: typeof AuthenticatedStaffTeamRoute
   AuthenticatedStaffIndexRoute: typeof AuthenticatedStaffIndexRoute
 }
 
 const AuthenticatedStaffRouteChildren: AuthenticatedStaffRouteChildren = {
   AuthenticatedStaffBookingsRoute: AuthenticatedStaffBookingsRoute,
+  AuthenticatedStaffCalendarRoute: AuthenticatedStaffCalendarRoute,
+  AuthenticatedStaffCreateBookingRoute: AuthenticatedStaffCreateBookingRoute,
   AuthenticatedStaffKitchenRoute: AuthenticatedStaffKitchenRoute,
   AuthenticatedStaffMenuRoute: AuthenticatedStaffMenuRoute,
   AuthenticatedStaffOrdersRoute: AuthenticatedStaffOrdersRoute,
+  AuthenticatedStaffPaymentsRoute: AuthenticatedStaffPaymentsRoute,
   AuthenticatedStaffPettyCashRoute: AuthenticatedStaffPettyCashRoute,
   AuthenticatedStaffPosRoute: AuthenticatedStaffPosRoute,
   AuthenticatedStaffRoomsRoute: AuthenticatedStaffRoomsRoute,
+  AuthenticatedStaffSettingsRoute: AuthenticatedStaffSettingsRoute,
   AuthenticatedStaffTeamRoute: AuthenticatedStaffTeamRoute,
   AuthenticatedStaffIndexRoute: AuthenticatedStaffIndexRoute,
 }
@@ -427,6 +555,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ContactRoute: ContactRoute,
   DiningRoute: DiningRoute,
+  ServicesRoute: ServicesRoute,
+  TermsRoute: TermsRoute,
   RoomsCodeRoute: RoomsCodeRoute,
   RoomsIndexRoute: RoomsIndexRoute,
 }

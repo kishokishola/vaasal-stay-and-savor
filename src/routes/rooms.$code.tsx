@@ -1,14 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { onAuthStateChanged } from "firebase/auth";
 import { toast } from "sonner";
 import { Users, Bath, Wifi, Snowflake, CheckCircle2 } from "lucide-react";
 import {
   createBooking,
   getBookedRanges,
+  subscribeToBooking,
   subscribeToRoomLocks,
   subscribeToRooms,
+  type Booking,
 } from "@/lib/firebase-data";
+import { auth } from "@/integrations/firebase/client";
 import { getPublicRoomByCode } from "@/lib/public-catalog";
 import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
 import { hotelToday } from "@/lib/dates";
@@ -17,7 +21,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { lkr, nightsBetween, publicAsset } from "@/lib/hotel";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { lkr, nightsBetween, publicAsset, roomRate } from "@/lib/hotel";
 
 export const Route = createFileRoute("/rooms/$code")({
   head: ({ params }) => ({
@@ -71,8 +82,52 @@ function RoomDetail() {
     notes: "",
   });
   const [done, setDone] = useState(false);
+  const [trackedBookingId, setTrackedBookingId] = useState<string | null>(null);
+  const [trackedBookingStatus, setTrackedBookingStatus] = useState<Booking["status"] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  const [currency, setCurrency] = useState<"LKR" | "USD">("LKR");
+  const [period, setPeriod] = useState<"night" | "day">("night");
   const nights = nightsBetween(form.in, form.out);
+  const photos = useMemo(
+    () =>
+      room
+        ? [
+            ...new Set(
+              [room.image_url, ...(room.gallery_urls ?? [])].filter((url): url is string => !!url),
+            ),
+          ]
+        : [],
+    [room],
+  );
+  const rate = room ? roomRate(room, currency, period) : 0;
+  const bookingTotal = rate * nights;
+  useEffect(
+    () =>
+      onAuthStateChanged(auth, (user) => {
+        if (!user) return;
+        const savedBookingId = window.localStorage.getItem(`vaasal-last-booking-${user.uid}`);
+        if (savedBookingId) setTrackedBookingId(savedBookingId);
+      }),
+    [],
+  );
+  useEffect(() => {
+    if (!trackedBookingId) return;
+    return subscribeToBooking(
+      trackedBookingId,
+      (booking) => setTrackedBookingStatus(booking?.status ?? null),
+      (error) => toast.error(`Could not refresh booking status: ${error.message}`),
+    );
+  }, [trackedBookingId]);
+  useEffect(() => {
+    setGalleryIndex(0);
+    if (photos.length < 2) return;
+    const timer = window.setInterval(
+      () => setGalleryIndex((current) => (current + 1) % photos.length),
+      3000,
+    );
+    return () => window.clearInterval(timer);
+  }, [photos]);
 
   if (isLoading)
     return (
@@ -114,7 +169,11 @@ function RoomDetail() {
     }
     setBusy(true);
     try {
-      await createBooking({
+      if (rate <= 0) {
+        toast.error("This room does not have a price for that rate. Contact the hotel.");
+        return;
+      }
+      const bookingId = await createBooking({
         room,
         guest_name: form.name,
         guest_email: form.email,
@@ -123,7 +182,13 @@ function RoomDetail() {
         check_out: form.out,
         guests: Number(form.guests),
         notes: form.notes.trim() || null,
+        rate_currency: currency,
+        rate_period: period,
       });
+      if (auth.currentUser) {
+        window.localStorage.setItem(`vaasal-last-booking-${auth.currentUser.uid}`, bookingId);
+      }
+      setTrackedBookingId(bookingId);
       setDone(true);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not submit booking.");
@@ -136,7 +201,7 @@ function RoomDetail() {
     <SiteLayout>
       <section className="relative h-[60vh] min-h-[420px] overflow-hidden">
         <img
-          src={publicAsset(room.image_url ?? "/images/room-double.jpg")}
+          src={publicAsset(photos[galleryIndex] ?? room.image_url ?? "/images/room-double.jpg")}
           alt={room.name}
           onError={(event) => {
             const image = event.currentTarget;
@@ -173,6 +238,44 @@ function RoomDetail() {
               </div>
             ))}
           </div>
+          {photos.length > 1 && (
+            <div className="mt-5 flex gap-3 overflow-x-auto">
+              {photos.map((photo, index) => (
+                <button
+                  key={photo}
+                  type="button"
+                  aria-label={`Show room photo ${index + 1}`}
+                  aria-pressed={galleryIndex === index}
+                  onClick={() => setGalleryIndex(index)}
+                  className={`shrink-0 border-2 ${galleryIndex === index ? "border-accent" : "border-transparent"}`}
+                >
+                  <img
+                    src={publicAsset(photo)}
+                    alt={`${room.name} view ${index + 1}`}
+                    className="size-20 object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="mt-6 flex flex-wrap gap-2 text-sm">
+            <span className="rounded border border-border px-3 py-2">
+              Local overnight: {lkr(room.price_local ?? room.price)}
+            </span>
+            {room.price_foreign ? (
+              <span className="rounded border border-border px-3 py-2">
+                Foreign overnight: USD {room.price_foreign.toLocaleString()}
+              </span>
+            ) : null}
+            <span className="rounded border border-border px-3 py-2">
+              Local day rate: {lkr(room.day_rate_local ?? room.price)}
+            </span>
+            {room.day_rate_foreign ? (
+              <span className="rounded border border-border px-3 py-2">
+                Foreign day rate: USD {room.day_rate_foreign.toLocaleString()}
+              </span>
+            ) : null}
+          </div>
           {(booked ?? []).length > 0 && (
             <div className="mt-10">
               <div className="eyebrow">Already booked</div>
@@ -187,13 +290,18 @@ function RoomDetail() {
           )}
         </div>
         <aside className="h-fit bg-card p-8 shadow-luxe">
-          {done ? (
+          {done || trackedBookingId ? (
             <div className="text-center">
               <CheckCircle2 className="mx-auto size-12 text-accent" />
-              <h2 className="mt-4 text-3xl">Request received</h2>
+              <h2 className="mt-4 text-3xl">
+                {done ? "Request received" : "Your booking request"}
+              </h2>
               <p className="mt-3 text-sm text-muted-foreground">
-                Thank you, {form.name}. Our team will confirm your stay shortly. Payment is made at
-                the hotel.
+                {done ? `Thank you, ${form.name}. ` : ""}
+                Our team will confirm your stay shortly. Payment is made at the hotel.
+              </p>
+              <p className="mt-3 text-sm" aria-live="polite">
+                Status: {trackedBookingStatus?.replace("_", " ") ?? "checking"}
               </p>
               <Button asChild variant="outline" className="mt-6">
                 <Link to="/rooms">Browse more rooms</Link>
@@ -203,6 +311,52 @@ function RoomDetail() {
             <form onSubmit={submit} className="space-y-4">
               <h2 className="text-3xl">Reserve this room</h2>
               <p className="text-xs text-muted-foreground">Pay at the hotel on arrival.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Rate currency</Label>
+                  <Select
+                    value={currency}
+                    onValueChange={(value) => {
+                      if (value === "LKR" || value === "USD") setCurrency(value);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="LKR">Local · LKR</SelectItem>
+                      <SelectItem
+                        value="USD"
+                        disabled={period === "night" ? !room.price_foreign : !room.day_rate_foreign}
+                      >
+                        Foreign · USD
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Rate type</Label>
+                  <Select
+                    value={period}
+                    onValueChange={(value) => {
+                      if (value === "night" || value === "day") setPeriod(value);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="night">Overnight</SelectItem>
+                      <SelectItem
+                        value="day"
+                        disabled={currency === "USD" && !room.day_rate_foreign}
+                      >
+                        Day rate
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Check-in</Label>
@@ -274,10 +428,13 @@ function RoomDetail() {
               {nights > 0 && (
                 <div className="flex justify-between border-t border-border pt-4 text-sm">
                   <span>
-                    {nights} night{nights > 1 ? "s" : ""}
+                    {nights} {period === "night" ? "night" : "day"}
+                    {nights > 1 ? "s" : ""}
                   </span>
                   <span className="font-medium text-primary">
-                    {lkr(nights * Number(room.price))}
+                    {currency === "LKR"
+                      ? lkr(bookingTotal)
+                      : `USD ${bookingTotal.toLocaleString()}`}
                   </span>
                 </div>
               )}
@@ -287,7 +444,7 @@ function RoomDetail() {
                 variant="luxe"
                 className="w-full"
                 size="lg"
-                disabled={busy || clash}
+                disabled={busy || clash || rate <= 0}
               >
                 {busy ? "Sending…" : "Request Booking"}
               </Button>

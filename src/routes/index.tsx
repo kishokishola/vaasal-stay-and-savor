@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { getReservedRoomIds, subscribeToDateLocks, subscribeToRooms } from "@/lib/firebase-data";
 import { hotelToday } from "@/lib/dates";
 import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
+import { useSiteSettings } from "@/lib/site-settings";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -44,6 +45,7 @@ const features = [
 
 function Home() {
   const { data: rooms, isLoading, isError } = useQuery(roomsQuery);
+  const { data: site } = useSiteSettings();
   const today = hotelToday();
   const availabilityKey = ["reserved-room-ids", today];
   const { data: reservedRoomIds } = useQuery({
@@ -54,6 +56,12 @@ function Home() {
   useFirestoreRealtime(availabilityKey, (onChange, onError) =>
     subscribeToDateLocks(today, onChange, onError),
   );
+  const latestRooms = [...(rooms ?? [])]
+    .sort(
+      (a, b) =>
+        (b.created_at ?? "").localeCompare(a.created_at ?? "") || b.code.localeCompare(a.code),
+    )
+    .slice(0, 6);
   return (
     <SiteLayout transparent>
       <section className="relative flex h-screen min-h-[640px] items-center overflow-hidden">
@@ -68,10 +76,11 @@ function Home() {
           <div className="max-w-2xl fade-up">
             <div className="eyebrow text-gold">Welcome to Vaasal Villa</div>
             <h1 className="mt-6 text-6xl leading-[1.05] md:text-8xl">
-              Where Jaffna welcomes you home.
+              {site?.hero_title ?? "Where Jaffna welcomes you home."}
             </h1>
             <p className="mt-6 max-w-lg text-lg opacity-85">
-              A luxury villa hotel combining comfort, style and timeless northern hospitality.
+              {site?.hero_subtitle ??
+                "A luxury villa hotel combining comfort, style and timeless northern hospitality."}
             </p>
             <div className="mt-10 flex flex-wrap gap-4">
               <Button asChild variant="luxe" size="lg">
@@ -88,13 +97,13 @@ function Home() {
       <section className="mx-auto grid max-w-7xl gap-16 px-6 py-28 md:grid-cols-2 md:items-center">
         <Reveal>
           <div className="eyebrow">About Us</div>
-          <h2 className="mt-4 text-5xl">Quiet luxury in the heart of Jaffna</h2>
+          <h2 className="mt-4 text-5xl">
+            {site?.about_title ?? "Quiet luxury in the heart of Jaffna"}
+          </h2>
           <div className="gold-rule my-8" />
           <p className="text-muted-foreground leading-relaxed">
-            Well-furnished rooms, a calm atmosphere and the essentials done beautifully — free
-            high-speed WiFi, 24-hour check-in and dedicated guest support. Whether for business,
-            family or leisure, we focus on cleanliness, comfort and personal care so you feel at
-            home throughout your stay.
+            {site?.about_body ??
+              "Well-furnished rooms, a calm atmosphere and the essentials done beautifully — free high-speed WiFi, 24-hour check-in and dedicated guest support."}
           </p>
           <div className="mt-10 grid grid-cols-2 gap-8">
             {features.map((f) => (
@@ -108,8 +117,8 @@ function Home() {
         </Reveal>
         <Reveal delay={200} className="grid grid-cols-2 gap-4">
           <img
-            src={publicAsset("/images/room-king.jpg")}
-            alt="King suite"
+            src={publicAsset(site?.about_image || "/images/room-king.jpg")}
+            alt="Vaasal Villa"
             loading="lazy"
             className="aspect-[3/4] w-full object-cover shadow-luxe"
           />
@@ -134,7 +143,7 @@ function Home() {
             </Button>
           </div>
           <div className="mt-14 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {(rooms ?? []).slice(0, 6).map((r, i) => (
+            {latestRooms.map((r, i) => (
               <Reveal key={r.id} delay={(i % 3) * 120}>
                 <RoomCard
                   room={r}

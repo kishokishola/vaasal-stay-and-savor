@@ -3,8 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Pencil, Plus, Trash2 } from "lucide-react";
-import type { Tables } from "@/integrations/supabase/types";
-import { deleteRoom, getRooms, saveRoom, subscribeToRooms } from "@/lib/firebase-data";
+import { deleteRoom, getRooms, saveRoom, subscribeToRooms, type Room } from "@/lib/firebase-data";
 import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +17,6 @@ export const Route = createFileRoute("/_authenticated/staff/rooms")({
   component: RoomsAdmin,
 });
 
-type Room = Tables<"rooms">;
 const blank = {
   code: "",
   name: "",
@@ -29,6 +27,11 @@ const blank = {
   ac: true,
   wifi: true,
   image_url: "/images/room-double.jpg",
+  price_local: 10000,
+  price_foreign: 0,
+  day_rate_local: 10000,
+  day_rate_foreign: 0,
+  gallery_urls: [] as string[],
   active: true,
 };
 
@@ -47,7 +50,16 @@ function RoomsAdmin() {
 
   async function save() {
     if (!edit) return;
-    const row = { ...blank, ...edit, price: Number(edit.price), capacity: Number(edit.capacity) };
+    const row = {
+      ...blank,
+      ...edit,
+      price: Number(edit.price),
+      capacity: Number(edit.capacity),
+      price_local: Number(edit.price_local ?? edit.price),
+      price_foreign: Number(edit.price_foreign ?? 0),
+      day_rate_local: Number(edit.day_rate_local ?? edit.price),
+      day_rate_foreign: Number(edit.day_rate_foreign ?? 0),
+    };
     try {
       await saveRoom(row as Room);
     } catch (error) {
@@ -93,7 +105,7 @@ function RoomsAdmin() {
                   <div className="text-xs text-accent">{r.code}</div>
                   <div className="font-display text-xl">{r.name}</div>
                 </div>
-                <div className="text-sm text-primary">{lkr(r.price)}</div>
+                <div className="text-sm text-primary">{lkr(r.price_local ?? r.price)}</div>
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
                 {r.active ? "Visible on website" : "Hidden"}
@@ -141,11 +153,62 @@ function RoomsAdmin() {
                   />
                 </div>
                 <div>
+                  <Label>Foreign / night (USD)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={edit.price_foreign ?? 0}
+                    onChange={(e) => setEdit({ ...edit, price_foreign: Number(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <Label>Local day rate (LKR)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={edit.day_rate_local ?? edit.price ?? 0}
+                    onChange={(e) => setEdit({ ...edit, day_rate_local: Number(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <Label>Foreign day rate (USD)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={edit.day_rate_foreign ?? 0}
+                    onChange={(e) => setEdit({ ...edit, day_rate_foreign: Number(e.target.value) })}
+                  />
+                </div>
+                <div>
                   <Label>Max guests</Label>
                   <Input
                     type="number"
                     value={edit.capacity ?? 2}
                     onChange={(e) => setEdit({ ...edit, capacity: Number(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="room-gallery-urls">
+                    Gallery image URLs (one per line, up to 12)
+                  </Label>
+                  <Textarea
+                    id="room-gallery-urls"
+                    rows={4}
+                    value={(edit.gallery_urls ?? []).join("\n")}
+                    onChange={(event) =>
+                      setEdit({
+                        ...edit,
+                        gallery_urls: event.target.value
+                          .split(/\r?\n/)
+                          .map((url) => url.trim())
+                          .filter(Boolean)
+                          .slice(0, 12),
+                      })
+                    }
+                    placeholder="/images/room-family.jpg"
                   />
                 </div>
                 <div>

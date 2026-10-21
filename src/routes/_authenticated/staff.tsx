@@ -59,8 +59,14 @@ function StaffLayout() {
       </div>
     );
   const cashierAllowed =
+    loc.pathname === "/staff" ||
+    loc.pathname === "/staff/" ||
     loc.pathname.startsWith("/staff/pos") ||
     loc.pathname.startsWith("/staff/orders") ||
+    loc.pathname.startsWith("/staff/bookings") ||
+    loc.pathname.startsWith("/staff/calendar") ||
+    loc.pathname.startsWith("/staff/create-booking") ||
+    loc.pathname.startsWith("/staff/payments") ||
     loc.pathname.startsWith("/staff/kitchen") ||
     loc.pathname.startsWith("/staff/petty-cash");
   if (!isAdmin && !cashierAllowed) return <Navigate to="/staff/pos" />;

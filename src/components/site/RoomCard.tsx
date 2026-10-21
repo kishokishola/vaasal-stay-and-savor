@@ -3,11 +3,16 @@ import { Users, Bath, Wifi, Snowflake } from "lucide-react";
 import { lkr, publicAsset } from "@/lib/hotel";
 import type { Tables } from "@/integrations/supabase/types";
 
+type RoomCardData = Tables<"rooms"> & {
+  price_local?: number;
+  price_foreign?: number;
+};
+
 export function RoomCard({
   room,
   availability,
 }: {
-  room: Tables<"rooms">;
+  room: RoomCardData;
   availability?: "Available today" | "Reserved today" | undefined;
 }) {
   return (
@@ -39,9 +44,20 @@ export function RoomCard({
       </div>
       <div className="p-6">
         <h3 className="text-2xl">{room.name}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          <span className="text-primary font-medium">{lkr(room.price)}</span> / night
-        </p>
+        <div className="mt-1 space-y-1 text-sm text-muted-foreground">
+          <p>
+            <span className="text-primary font-medium">{lkr(room.price_local ?? room.price)}</span>{" "}
+            / night · Local
+          </p>
+          {room.price_foreign ? (
+            <p>
+              <span className="text-primary font-medium">
+                USD {room.price_foreign.toLocaleString()}
+              </span>{" "}
+              / night · Foreign
+            </p>
+          ) : null}
+        </div>
         <div className="mt-4 flex flex-wrap gap-4 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
             <Users className="size-3.5" />

@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
 import { SiteLayout, PageHero } from "@/components/site/SiteLayout";
 import { RoomCard } from "@/components/site/RoomCard";
 import { publicAsset, roomsQuery } from "@/lib/hotel";
 import { getReservedRoomIds, subscribeToDateLocks, subscribeToRooms } from "@/lib/firebase-data";
 import { hotelToday } from "@/lib/dates";
 import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/rooms/")({
   head: () => ({
@@ -29,6 +31,7 @@ export const Route = createFileRoute("/rooms/")({
 });
 
 function Rooms() {
+  const [page, setPage] = useState(1);
   const { data, isLoading, isError } = useQuery(roomsQuery);
   const today = hotelToday();
   const availabilityKey = ["reserved-room-ids", today];
@@ -40,6 +43,9 @@ function Rooms() {
   useFirestoreRealtime(availabilityKey, (onChange, onError) =>
     subscribeToDateLocks(today, onChange, onError),
   );
+  const pageCount = Math.max(1, Math.ceil((data?.length ?? 0) / 6));
+  const pageRooms = useMemo(() => (data ?? []).slice((page - 1) * 6, page * 6), [data, page]);
+  useEffect(() => setPage((current) => Math.min(current, pageCount)), [pageCount]);
   return (
     <SiteLayout>
       <PageHero
@@ -55,7 +61,7 @@ function Rooms() {
           </p>
         )}
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {(data ?? []).map((r) => (
+          {pageRooms.map((r) => (
             <RoomCard
               key={r.id}
               room={r}
@@ -71,6 +77,27 @@ function Rooms() {
         </div>
         {!isLoading && !isError && !data?.length && (
           <p className="text-muted-foreground">No rooms are currently available to display.</p>
+        )}
+        {pageCount > 1 && (
+          <div className="mt-10 flex items-center justify-center gap-3">
+            <Button
+              variant="outline"
+              disabled={page <= 1}
+              onClick={() => setPage((value) => Math.max(1, value - 1))}
+            >
+              Previous
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Page {page} of {pageCount}
+            </span>
+            <Button
+              variant="outline"
+              disabled={page >= pageCount}
+              onClick={() => setPage((value) => Math.min(pageCount, value + 1))}
+            >
+              Next
+            </Button>
+          </div>
         )}
       </section>
     </SiteLayout>

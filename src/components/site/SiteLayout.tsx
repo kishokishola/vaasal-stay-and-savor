@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button";
 import { ParallaxImage } from "./Parallax";
 import { BrandLogo } from "./BrandLogo";
 import { useStaffAuth } from "@/hooks/useStaffAuth";
+import { useSiteSettings } from "@/lib/site-settings";
 
 const nav = [
   { to: "/", label: "Home" },
   { to: "/rooms", label: "Rooms" },
   { to: "/dining", label: "Dining" },
+  { to: "/services", label: "Services" },
   { to: "/about", label: "About" },
   { to: "/contact", label: "Contact" },
 ] as const;
@@ -24,7 +26,9 @@ export function SiteLayout({
 }) {
   const [open, setOpen] = useState(false);
   const { data: staffAuth } = useStaffAuth();
+  const { data: site } = useSiteSettings();
   const isAdmin = !!staffAuth?.isAdmin;
+  const hotel = site ?? HOTEL;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -108,21 +112,21 @@ export function SiteLayout({
               <BrandLogo size="footer" />
             </Link>
             <div className="gold-rule my-4" />
-            <p className="text-sm opacity-75">{HOTEL.tagline}. Warm hospitality, quiet luxury.</p>
+            <p className="text-sm opacity-75"> {hotel.tagline}. Warm hospitality, quiet luxury.</p>
           </div>
           <div className="space-y-3 text-sm opacity-85">
             <div className="eyebrow mb-4">Reach us</div>
             <p className="flex gap-2">
               <MapPin className="size-4 text-gold" />
-              {HOTEL.address}
+              {hotel.address}
             </p>
             <p className="flex gap-2">
               <Phone className="size-4 text-gold" />
-              {HOTEL.phone}
+              {hotel.phone}
             </p>
             <p className="flex gap-2">
               <Mail className="size-4 text-gold" />
-              {HOTEL.email}
+              {hotel.email}
             </p>
           </div>
           <div className="space-y-3 text-sm">
@@ -132,6 +136,29 @@ export function SiteLayout({
                 {n.label}
               </Link>
             ))}
+            <Link to="/terms" className="block opacity-75 hover:text-gold">
+              Terms & Conditions
+            </Link>
+            <div className="flex flex-wrap gap-4 pt-3">
+              {[
+                ["Facebook", hotel.facebook],
+                ["Instagram", hotel.instagram],
+                ["X", hotel.twitter],
+                ["YouTube", hotel.youtube],
+              ]
+                .filter(([, url]) => !!url)
+                .map(([label, url]) => (
+                  <a
+                    key={label}
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs opacity-75 hover:text-gold"
+                  >
+                    {label}
+                  </a>
+                ))}
+            </div>
             {isAdmin && (
               <Link to="/staff" className="flex items-center gap-1.5 text-gold hover:underline">
                 <ShieldCheck className="size-3.5" />
@@ -145,7 +172,7 @@ export function SiteLayout({
         </div>
       </footer>
       <a
-        href={`https://api.whatsapp.com/send?phone=${HOTEL.whatsapp}&text=Hi!%20I%20need%20help.`}
+        href={`https://api.whatsapp.com/send?phone=${hotel.whatsapp.replace(/\D/g, "")}&text=Hi!%20I%20need%20help.`}
         target="_blank"
         rel="noreferrer"
         className="fixed bottom-6 right-6 z-50 flex size-14 items-center justify-center rounded-full bg-gold-gradient text-accent-foreground shadow-luxe"

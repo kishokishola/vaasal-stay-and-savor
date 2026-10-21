@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { collectedOrderAmount, lkr } from "@/lib/hotel";
+import { collectedOrderAmount, lkr, rateAmount } from "@/lib/hotel";
 
 export const Route = createFileRoute("/_authenticated/staff/bookings")({
   component: Bookings,
@@ -144,7 +144,7 @@ function Bookings() {
                     {b.check_in} → {b.check_out}
                     <div className="text-xs text-muted-foreground">{b.guests} guest(s)</div>
                   </TableCell>
-                  <TableCell>{lkr(b.total)}</TableCell>
+                  <TableCell>{rateAmount(b.total, b.rate_currency)}</TableCell>
                   <TableCell className="whitespace-nowrap text-sm">
                     {lkr(roomServiceTotal)}
                     <div className="text-xs text-muted-foreground">

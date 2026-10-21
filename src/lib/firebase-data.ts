@@ -18,14 +18,30 @@ import { signInAnonymously } from "firebase/auth";
 import type { Tables } from "@/integrations/supabase/types";
 import { auth, db, requireFirebaseConfig } from "@/integrations/firebase/client";
 import { hotelToday } from "@/lib/dates";
-import { collectedOrderAmount, paymentStatusFor } from "@/lib/hotel";
+import { collectedOrderAmount, paymentStatusFor, roomRate } from "@/lib/hotel";
 
-export type Room = Tables<"rooms">;
+export type Room = Tables<"rooms"> & {
+  created_at?: string;
+  price_local?: number;
+  price_foreign?: number;
+  day_rate_local?: number;
+  day_rate_foreign?: number;
+  gallery_urls?: string[];
+};
 export type MenuItem = Tables<"menu_items"> & {
   deleted?: boolean;
   image_url?: string;
 };
-export type Booking = Tables<"bookings"> & { room_code: string; room_name: string };
+export type Booking = Tables<"bookings"> & {
+  room_code: string;
+  room_name: string;
+  rate_currency?: "LKR" | "USD";
+  rate_period?: "night" | "day";
+  paid_amount?: number;
+  payment_status?: "paid" | "unpaid" | "partial";
+  payment_history?: { amount: number; method: string; at: string; by: string }[];
+  created_by_uid?: string;
+};
 export type Order = Omit<Tables<"orders">, "created_at"> & {
   created_at: string;
   order_items: Tables<"order_items">[];
@@ -112,6 +128,17 @@ export async function saveRoom(room: Room) {
   if (!room.code.trim() || !room.name.trim()) throw new Error("Room number and name are required.");
   if (Number(room.price) <= 0 || Number(room.capacity) < 1)
     throw new Error("Room price and capacity must be positive.");
+  for (const rate of [
+    room.price_local,
+    room.price_foreign,
+    room.day_rate_local,
+    room.day_rate_foreign,
+  ]) {
+    if (rate !== undefined && rate !== 0 && (!Number.isFinite(rate) || rate < 0))
+      throw new Error("Room rates must be valid non-negative amounts.");
+  }
+  if (room.gallery_urls && room.gallery_urls.length > 12)
+    throw new Error("Add no more than 12 room gallery image URLs.");
   const { id, ...data } = room;
   const duplicates = await getDocs(query(coll("rooms"), where("code", "==", room.code.trim())));
   if (duplicates.docs.some((existing) => existing.id !== id))
@@ -256,8 +283,11 @@ export async function createBooking(input: {
   check_out: string;
   guests: number;
   notes: string | null;
+  rate_currency?: "LKR" | "USD";
+  rate_period?: "night" | "day";
 }) {
   requireFirebaseConfig();
+  const bookingOwner = auth.currentUser ?? (await signInAnonymously(auth)).user;
   const nights = dateRange(input.check_in, input.check_out);
   if (input.guests < 1 || input.guests > input.room.capacity)
     throw new Error("Guest count exceeds room capacity.");
@@ -278,6 +308,11 @@ export async function createBooking(input: {
     );
     if (locks.some((lock) => lock.exists())) throw new Error("Those dates are already booked.");
     const room = roomSnapshot.data() as Room;
+    const currency = input.rate_currency ?? "LKR";
+    const period = input.rate_period ?? "night";
+    const unitPrice = Number(roomRate(room, currency, period));
+    if (!Number.isFinite(unitPrice) || unitPrice <= 0)
+      throw new Error("This room does not have a valid price for the selected rate.");
     transaction.set(bookingRef, {
       room_id: roomSnapshot.id,
       guest_name: input.guest_name.trim(),
@@ -287,9 +322,133 @@ export async function createBooking(input: {
       check_out: input.check_out,
       guests: input.guests,
       notes: input.notes,
-      total: Number(room.price) * nights.length,
+      total: unitPrice * nights.length,
+      rate_currency: currency,
+      rate_period: period,
+      paid_amount: 0,
+      payment_status: "unpaid",
+      payment_history: [],
+      created_by_uid: bookingOwner.uid,
       status: "pending",
       created_at: new Date().toISOString(),
+    });
+  });
+  return bookingRef.id;
+}
+
+export function subscribeToBooking(
+  id: string,
+  onChange: (booking: Booking | null) => void,
+  onError: (error: Error) => void,
+) {
+  requireFirebaseConfig();
+  return onSnapshot(
+    refFor("bookings", id),
+    (snapshot) =>
+      onChange(snapshot.exists() ? withId<Booking>(snapshot.id, snapshot.data() as Booking) : null),
+    onError,
+  );
+}
+
+export async function createStaffBooking(input: {
+  roomId: string;
+  guest_name: string;
+  guest_email: string;
+  guest_phone: string;
+  check_in: string;
+  check_out: string;
+  guests: number;
+  notes: string | null;
+  rate_currency: "LKR" | "USD";
+  rate_period: "night" | "day";
+}) {
+  requireFirebaseConfig();
+  const nights = dateRange(input.check_in, input.check_out);
+  if (!input.guest_name.trim() || !input.guest_phone.trim())
+    throw new Error("Guest name and phone are required.");
+  if (input.guests < 1 || !Number.isSafeInteger(input.guests))
+    throw new Error("Guest count must be a positive whole number.");
+  const bookingRef = doc(coll("bookings"));
+  await runTransaction(db, async (transaction) => {
+    const roomRef = refFor("rooms", input.roomId);
+    const roomSnapshot = await transaction.get(roomRef);
+    if (!roomSnapshot.exists() || roomSnapshot.data()["active"] !== true)
+      throw new Error("This room is no longer available.");
+    const room = roomSnapshot.data() as Room;
+    if (input.guests > room.capacity) throw new Error("Guest count exceeds room capacity.");
+    const locks = await Promise.all(
+      nights.map((date) => transaction.get(refFor("room_night_locks", `${input.roomId}_${date}`))),
+    );
+    if (locks.some((lock) => lock.exists()))
+      throw new Error("Those dates are already reserved for this room.");
+    const unitPrice = Number(roomRate(room, input.rate_currency, input.rate_period));
+    if (!Number.isFinite(unitPrice) || unitPrice <= 0)
+      throw new Error("This room does not have a valid price for the selected rate.");
+    const now = new Date().toISOString();
+    transaction.set(bookingRef, {
+      room_id: input.roomId,
+      guest_name: input.guest_name.trim(),
+      guest_email: input.guest_email.trim(),
+      guest_phone: input.guest_phone.trim(),
+      check_in: input.check_in,
+      check_out: input.check_out,
+      guests: input.guests,
+      notes: input.notes?.trim() || null,
+      total: unitPrice * nights.length,
+      rate_currency: input.rate_currency,
+      rate_period: input.rate_period,
+      paid_amount: 0,
+      payment_status: "unpaid",
+      payment_history: [],
+      status: "confirmed",
+      created_at: now,
+    });
+    nights.forEach((date) =>
+      transaction.set(refFor("room_night_locks", `${input.roomId}_${date}`), {
+        room_id: input.roomId,
+        date,
+        booking_id: bookingRef.id,
+      }),
+    );
+  });
+  return bookingRef.id;
+}
+
+export async function recordBookingPayment(
+  id: string,
+  amount: number,
+  method: "cash" | "card" | "bank_transfer",
+) {
+  requireFirebaseConfig();
+  if (method !== "cash" && method !== "card" && method !== "bank_transfer")
+    throw new Error("Choose a valid booking payment method.");
+  if (!Number.isFinite(amount) || Math.round(amount * 100) <= 0)
+    throw new Error("Enter a payment amount greater than zero.");
+  const bookingRef = refFor("bookings", id);
+  await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(bookingRef);
+    if (!snapshot.exists()) throw new Error("This booking no longer exists.");
+    const booking = snapshot.data() as Tables<"bookings"> & {
+      paid_amount?: number;
+      payment_history?: { amount: number; method: string; at: string; by: string }[];
+    };
+    if (booking.status === "cancelled")
+      throw new Error("Cancelled bookings cannot receive payments.");
+    const totalCents = Math.round(Number(booking.total) * 100);
+    const paidCents = Math.round(Number(booking.paid_amount ?? 0) * 100);
+    const amountCents = Math.round(amount * 100);
+    if (!Number.isSafeInteger(totalCents) || totalCents < 0 || amountCents > totalCents - paidCents)
+      throw new Error("Payment exceeds the valid outstanding booking balance.");
+    const now = new Date().toISOString();
+    const paidAmount = (paidCents + amountCents) / 100;
+    transaction.update(bookingRef, {
+      paid_amount: paidAmount,
+      payment_status: paymentStatusFor(totalCents / 100, paidAmount),
+      payment_history: [
+        ...(booking.payment_history ?? []).slice(-99),
+        { amount: amountCents / 100, method, at: now, by: auth.currentUser?.email ?? "staff" },
+      ],
+      updated_at: now,
     });
   });
 }
@@ -915,12 +1074,12 @@ export async function recordPettyCashTransaction(input: {
   });
 }
 
-export async function getBookings(status?: string) {
+export async function getBookings(status?: string): Promise<Booking[]> {
   requireFirebaseConfig();
   const result = await getDocs(query(coll("bookings"), orderBy("check_in", "desc")));
   const bookings = await Promise.all(
     result.docs.map(async (item) => {
-      const booking = item.data() as Tables<"bookings">;
+      const booking = item.data() as Booking;
       const roomSnapshot = await getDoc(refFor("rooms", booking.room_id));
       const room = roomSnapshot.exists() ? (roomSnapshot.data() as Room) : undefined;
       return {
