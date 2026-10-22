@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+  createUserWithEmailAndPassword,
   onAuthStateChanged,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
@@ -45,12 +46,15 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const nav = useNavigate();
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [selectedRole, setSelectedRole] = useState<StaffRole | null>(null);
   const [busy, setBusy] = useState(false);
   const [accessMessage, setAccessMessage] = useState("");
   const [resetMessage, setResetMessage] = useState("");
+  const [signupMessage, setSignupMessage] = useState("");
   const [passwordResetComplete, setPasswordResetComplete] = useState(false);
   const submitting = useRef(false);
   const configured = isFirebaseConfigured();
@@ -74,6 +78,10 @@ function AuthPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (mode === "signup") {
+      await createAccount();
+      return;
+    }
     if (!selectedRole) {
       setAccessMessage("Choose the staff portal assigned to your account before signing in.");
       return;
@@ -126,6 +134,40 @@ function AuthPage() {
       toast.error(staffAuthErrorMessage(error, window.location.hostname));
     } finally {
       submitting.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function createAccount() {
+    const address = email.trim().toLowerCase();
+    if (password.length < 6) {
+      setAccessMessage("Choose a password with at least 6 characters.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setAccessMessage("The passwords do not match.");
+      return;
+    }
+    if (!configured) {
+      setAccessMessage("Staff account creation is unavailable because Firebase is not configured.");
+      return;
+    }
+
+    setBusy(true);
+    setAccessMessage("");
+    setSignupMessage("");
+    try {
+      await createUserWithEmailAndPassword(auth, address, password);
+      await signOut(auth);
+      setPassword("");
+      setConfirmPassword("");
+      setMode("signin");
+      setSignupMessage(
+        "Your staff login has been created. For security, an administrator must assign your staff role before you can enter a dashboard. Use your email as your username; you can reset your password from this page.",
+      );
+    } catch (error) {
+      setAccessMessage(staffAuthErrorMessage(error, window.location.hostname));
+    } finally {
       setBusy(false);
     }
   }
@@ -195,10 +237,38 @@ function AuthPage() {
           >
             <div>
               <p className="eyebrow">Secure staff portal</p>
-              <h1 className="mt-2 text-4xl">Welcome back</h1>
+              <h1 className="mt-2 text-4xl">
+                {mode === "signin" ? "Welcome back" : "Create staff login"}
+              </h1>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Choose your assigned staff portal, then sign in with your staff email and password.
+                {mode === "signin"
+                  ? "Choose your assigned staff portal, then sign in with your email and password."
+                  : "Create a login with your email as username and a password you choose."}
               </p>
+            </div>
+            <div className="grid grid-cols-2 border-b border-border text-sm">
+              <button
+                type="button"
+                className={`min-h-11 border-b-2 px-3 ${mode === "signin" ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}
+                onClick={() => {
+                  setMode("signin");
+                  setAccessMessage("");
+                }}
+                disabled={busy}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                className={`min-h-11 border-b-2 px-3 ${mode === "signup" ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}
+                onClick={() => {
+                  setMode("signup");
+                  setAccessMessage("");
+                }}
+                disabled={busy}
+              >
+                Create account
+              </button>
             </div>
             {passwordResetComplete && (
               <p
@@ -208,44 +278,54 @@ function AuthPage() {
                 Your password has been updated. Sign in with your new password.
               </p>
             )}
-            <fieldset className="space-y-2">
-              <legend className="text-sm font-medium">Staff portal</legend>
-              <div className="grid grid-cols-2 gap-2">
-                {STAFF_ROLES.map((role) => {
-                  const Icon = staffRoleIcons[role];
-                  const selected = selectedRole === role;
-                  return (
-                    <label
-                      key={role}
-                      className={`flex min-h-12 cursor-pointer items-center gap-2 rounded-sm border px-3 py-2 text-left text-sm transition ${
-                        selected
-                          ? "border-primary bg-primary/10 text-primary ring-1 ring-primary/40"
-                          : "border-border/70 bg-white/30 text-foreground hover:border-primary/50 hover:bg-white/50"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="staff-role"
-                        value={role}
-                        checked={selected}
-                        disabled={busy}
-                        onChange={() => {
-                          setSelectedRole(role);
-                          setAccessMessage("");
-                        }}
-                        className="size-4 shrink-0 accent-primary"
-                      />
-                      <Icon className="size-4 shrink-0" />
-                      <span>{staffRoleLabel(role)}</span>
-                    </label>
-                  );
-                })}
-              </div>
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Your role is checked against your staff account after sign-in. Choosing a portal
-                does not grant access.
+            {signupMessage && (
+              <p
+                role="status"
+                className="rounded-sm border border-primary/30 bg-primary/5 p-3 text-sm leading-relaxed text-foreground"
+              >
+                {signupMessage}
               </p>
-            </fieldset>
+            )}
+            {mode === "signin" && (
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium">Staff portal</legend>
+                <div className="grid grid-cols-2 gap-2">
+                  {STAFF_ROLES.map((role) => {
+                    const Icon = staffRoleIcons[role];
+                    const selected = selectedRole === role;
+                    return (
+                      <label
+                        key={role}
+                        className={`flex min-h-12 cursor-pointer items-center gap-2 rounded-sm border px-3 py-2 text-left text-sm transition ${
+                          selected
+                            ? "border-primary bg-primary/10 text-primary ring-1 ring-primary/40"
+                            : "border-border/70 bg-white/30 text-foreground hover:border-primary/50 hover:bg-white/50"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="staff-role"
+                          value={role}
+                          checked={selected}
+                          disabled={busy}
+                          onChange={() => {
+                            setSelectedRole(role);
+                            setAccessMessage("");
+                          }}
+                          className="size-4 shrink-0 accent-primary"
+                        />
+                        <Icon className="size-4 shrink-0" />
+                        <span>{staffRoleLabel(role)}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Your role is checked against your staff account after sign-in. Choosing a portal
+                  does not grant access.
+                </p>
+              </fieldset>
+            )}
             {accessMessage && (
               <p
                 role="alert"
@@ -271,11 +351,11 @@ function AuthPage() {
               </p>
             )}
             <div className="space-y-2">
-              <Label htmlFor="staff-email">Email address</Label>
+              <Label htmlFor="staff-email">Email address (username)</Label>
               <Input
                 id="staff-email"
                 type="email"
-                autoComplete="email"
+                autoComplete={mode === "signup" ? "username" : "email"}
                 placeholder="you@example.com"
                 required
                 value={email}
@@ -285,19 +365,39 @@ function AuthPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="staff-password">Password</Label>
+              <Label htmlFor="staff-password">
+                {mode === "signup" ? "Choose password" : "Password"}
+              </Label>
               <Input
                 id="staff-password"
                 type="password"
-                autoComplete="current-password"
-                placeholder="Enter your password"
+                autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                placeholder={mode === "signup" ? "At least 6 characters" : "Enter your password"}
                 required
+                minLength={mode === "signup" ? 6 : undefined}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={busy}
                 className="h-12 bg-background"
               />
             </div>
+            {mode === "signup" && (
+              <div className="space-y-2">
+                <Label htmlFor="staff-confirm-password">Confirm password</Label>
+                <Input
+                  id="staff-confirm-password"
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="Enter the same password again"
+                  required
+                  minLength={6}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={busy}
+                  className="h-12 bg-background"
+                />
+              </div>
+            )}
             <Button
               type="submit"
               variant="luxe"
@@ -305,20 +405,27 @@ function AuthPage() {
               size="lg"
               disabled={busy || !configured}
             >
-              {busy ? "Please wait…" : "Sign in to staff portal"}
+              {busy
+                ? "Please wait…"
+                : mode === "signin"
+                  ? "Sign in to staff portal"
+                  : "Create staff login"}
             </Button>
-            <button
-              type="button"
-              className="min-h-11 cursor-pointer rounded px-2 text-sm text-primary transition-colors hover:bg-secondary hover:underline hover:underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-              onClick={() => void resetPassword()}
-              disabled={busy || !configured}
-            >
-              Forgot password? Send a reset link
-            </button>
+            {mode === "signin" && (
+              <button
+                type="button"
+                className="min-h-11 cursor-pointer rounded px-2 text-sm text-primary transition-colors hover:bg-secondary hover:underline hover:underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => void resetPassword()}
+                disabled={busy || !configured}
+              >
+                Forgot password? Send a reset link
+              </button>
+            )}
             <div className="border-t border-border pt-4">
               <p className="text-xs leading-relaxed text-muted-foreground">
-                There is no public staff sign-up. Ask the administrator to create your Firebase
-                account in Staff → Create staff account. Legacy Supabase passwords cannot be reused.
+                {mode === "signup"
+                  ? "Creating a login does not grant dashboard access. The administrator must assign your staff role. Use your email as your username so password recovery can reach you."
+                  : "Use Create account for a new Firebase login. The administrator must assign your role before dashboard access. Legacy Supabase passwords cannot be reused."}
               </p>
             </div>
             <p className="text-xs leading-relaxed text-muted-foreground">
