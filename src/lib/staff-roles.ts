@@ -31,16 +31,11 @@ export function canAccessStaffRoute(role: StaffRole, pathname: string) {
       pathname.startsWith("/staff/calendar") ||
       pathname.startsWith("/staff/create-booking") ||
       pathname.startsWith("/staff/payments") ||
-      pathname.startsWith("/staff/kitchen") ||
       pathname.startsWith("/staff/petty-cash")
     );
   }
   if (role === "cashier_restaurant") {
-    return (
-      pathname.startsWith("/staff/pos") ||
-      pathname.startsWith("/staff/orders") ||
-      pathname.startsWith("/staff/kitchen")
-    );
+    return pathname.startsWith("/staff/pos") || pathname.startsWith("/staff/orders");
   }
   return pathname.startsWith("/staff/kitchen");
 }

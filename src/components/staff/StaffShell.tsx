@@ -67,7 +67,7 @@ export function StaffShell({ role, children }: { role: StaffRole; children: Reac
     ).length + unpaidOrders;
   const links = isAdmin
     ? [
-        { to: "/staff", label: "Overview", icon: LayoutDashboard, exact: true },
+        { to: "/staff", label: "Dashboard", icon: LayoutDashboard, exact: true },
         { to: "/staff/rooms", label: "Manage Rooms", icon: BedDouble },
         { to: "/staff/menu", label: "Food Menu", icon: UtensilsCrossed },
         { to: "/staff/calendar", label: "Room Calendar", icon: CalendarCheck },
@@ -98,9 +98,8 @@ export function StaffShell({ role, children }: { role: StaffRole; children: Reac
           },
           { to: "/staff/calendar", label: "Room Calendar", icon: CalendarCheck },
           { to: "/staff/payments", label: "Payments", icon: CreditCard },
-          { to: "/staff/pos", label: "Restaurant POS", icon: ShoppingCart },
+          { to: "/staff/pos", label: "Food Orders", icon: ShoppingCart },
           { to: "/staff/orders", label: "Order History", icon: Receipt, badge: unpaidOrders },
-          { to: "/staff/kitchen", label: "Kitchen Queue", icon: ChefHat },
           { to: "/staff/petty-cash", label: "Petty Cash", icon: Wallet },
         ]
       : role === "cashier_restaurant"

@@ -94,8 +94,8 @@ function Overview() {
       to: "/staff/menu",
     },
     {
-      label: "Manage staff",
-      description: "Create staff logins and assign protected roles.",
+      label: "Create staff account",
+      description: "Create Firebase staff logins and assign protected roles.",
       to: "/staff/team",
     },
   ] as const;

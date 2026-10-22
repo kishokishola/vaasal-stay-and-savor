@@ -23,11 +23,13 @@ describe("staff roles", () => {
   it("limits specialist staff to their operational pages", () => {
     expect(canAccessStaffRoute("cashier", "/staff/bookings")).toBe(true);
     expect(canAccessStaffRoute("cashier", "/staff/cashier")).toBe(true);
-    expect(canAccessStaffRoute("cashier", "/staff/team")).toBe(false);
+    expect(canAccessStaffRoute("cashier", "/staff/kitchen")).toBe(false);
     expect(canAccessStaffRoute("cashier", "/staff/team")).toBe(false);
     expect(canAccessStaffRoute("cashier_restaurant", "/staff/pos")).toBe(true);
     expect(canAccessStaffRoute("cashier_restaurant", "/staff/team")).toBe(false);
+    expect(canAccessStaffRoute("cashier_restaurant", "/staff/kitchen")).toBe(false);
     expect(canAccessStaffRoute("kitchen", "/staff/kitchen")).toBe(true);
+    expect(canAccessStaffRoute("kitchen", "/staff/pos")).toBe(false);
     expect(canAccessStaffRoute("kitchen", "/staff/payments")).toBe(false);
     expect(canAccessStaffRoute("admin", "/staff/settings")).toBe(true);
   });
