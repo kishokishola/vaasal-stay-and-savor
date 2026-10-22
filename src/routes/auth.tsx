@@ -10,6 +10,7 @@ import {
 import { auth, isFirebaseConfigured } from "@/integrations/firebase/client";
 import { getStaffAccess } from "@/lib/firebase-data";
 import { STAFF_ROLES, staffHomeRoute, staffRoleLabel, type StaffRole } from "@/lib/staff-roles";
+import { staffAuthErrorMessage, staffPasswordResetActionSettings } from "@/lib/staff-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,29 +24,6 @@ const staffRoleIcons: Record<StaffRole, LucideIcon> = {
   cashier_restaurant: UtensilsCrossed,
   kitchen: ChefHat,
 };
-
-function authErrorMessage(error: unknown) {
-  const code =
-    error && typeof error === "object" && "code" in error && typeof error.code === "string"
-      ? error.code
-      : "";
-  if (code === "auth/invalid-credential" || code === "auth/user-not-found") {
-    return "Email or password is incorrect. If this is an old Supabase staff account, use the password-reset link to set a Firebase password.";
-  }
-  if (code === "auth/operation-not-allowed") {
-    return "Email/password sign-in is disabled. Enable it in Firebase Authentication settings.";
-  }
-  if (code === "auth/unauthorized-domain" || code === "auth/unauthorized-continue-uri") {
-    return "Firebase rejected the email action link. In Firebase Console → Authentication → Settings → Authorized domains, make sure vaasal-villa.firebaseapp.com is listed.";
-  }
-  if (code === "auth/too-many-requests") {
-    return "Too many attempts. Wait a few minutes, then try again.";
-  }
-  if (code === "auth/network-request-failed") {
-    return "Firebase could not be reached. Check your internet connection, disable VPN/ad-blocking temporarily, and try again. If it continues, allow vaasal-villa.firebaseapp.com and identitytoolkit.googleapis.com on this network.";
-  }
-  return error instanceof Error ? error.message : "Could not complete authentication.";
-}
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -72,10 +50,14 @@ function AuthPage() {
   const [selectedRole, setSelectedRole] = useState<StaffRole | null>(null);
   const [busy, setBusy] = useState(false);
   const [accessMessage, setAccessMessage] = useState("");
+  const [resetMessage, setResetMessage] = useState("");
+  const [passwordResetComplete, setPasswordResetComplete] = useState(false);
   const submitting = useRef(false);
   const configured = isFirebaseConfigured();
 
   useEffect(() => {
+    const search = new URLSearchParams(window.location.search);
+    setPasswordResetComplete(search.get("passwordReset") === "complete");
     return onAuthStateChanged(auth, async (user) => {
       if (!user?.email || submitting.current) return;
       try {
@@ -141,7 +123,7 @@ function AuthPage() {
       setAccessMessage("");
       nav({ to: staffHomeRoute(role), replace: true });
     } catch (error) {
-      toast.error(authErrorMessage(error));
+      toast.error(staffAuthErrorMessage(error, window.location.hostname));
     } finally {
       submitting.current = false;
       setBusy(false);
@@ -154,12 +136,19 @@ function AuthPage() {
       toast.error("Enter your staff email address first.");
       return;
     }
+    setResetMessage("");
     setBusy(true);
     try {
-      await sendPasswordResetEmail(auth, address);
-      toast.success("If this is a staff account, Firebase has sent a password-reset link.");
+      await sendPasswordResetEmail(
+        auth,
+        address,
+        staffPasswordResetActionSettings(window.location.origin, import.meta.env.BASE_URL),
+      );
+      setResetMessage(
+        "Firebase accepted the request. If this is a Firebase staff account, check the inbox and spam folder for a reset email, then open its link to set a new password. If no email arrives, ask the administrator to create the Firebase account in Staff → Create staff account. A reset request does not create an account.",
+      );
     } catch (error) {
-      toast.error(authErrorMessage(error));
+      toast.error(staffAuthErrorMessage(error, window.location.hostname));
     } finally {
       setBusy(false);
     }
@@ -211,6 +200,14 @@ function AuthPage() {
                 Choose your assigned staff portal, then sign in with your staff email and password.
               </p>
             </div>
+            {passwordResetComplete && (
+              <p
+                role="status"
+                className="rounded-sm border border-primary/30 bg-primary/5 p-3 text-sm leading-relaxed text-foreground"
+              >
+                Your password has been updated. Sign in with your new password.
+              </p>
+            )}
             <fieldset className="space-y-2">
               <legend className="text-sm font-medium">Staff portal</legend>
               <div className="grid grid-cols-2 gap-2">
@@ -255,6 +252,14 @@ function AuthPage() {
                 className="rounded-sm border border-destructive/40 bg-destructive/5 p-3 text-sm leading-relaxed text-destructive"
               >
                 {accessMessage}
+              </p>
+            )}
+            {resetMessage && (
+              <p
+                role="status"
+                className="rounded-sm border border-primary/30 bg-primary/5 p-3 text-sm leading-relaxed text-foreground"
+              >
+                {resetMessage}
               </p>
             )}
             {!configured && (
@@ -312,9 +317,8 @@ function AuthPage() {
             </button>
             <div className="border-t border-border pt-4">
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Staff accounts are created by the hotel administrator. Email verification is not
-                required. If reset email delivery fails, ask the administrator to set a new password
-                in Firebase Console.
+                There is no public staff sign-up. Ask the administrator to create your Firebase
+                account in Staff → Create staff account. Legacy Supabase passwords cannot be reused.
               </p>
             </div>
             <p className="text-xs leading-relaxed text-muted-foreground">

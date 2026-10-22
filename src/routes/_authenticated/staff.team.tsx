@@ -2,11 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { deleteUser, type User } from "firebase/auth";
-import { Trash2, UserPlus } from "lucide-react";
+import { deleteUser, sendPasswordResetEmail, type User } from "firebase/auth";
+import { KeyRound, Trash2, UserPlus } from "lucide-react";
 import { assignStaff, listStaff, removeStaff } from "@/lib/firebase-data";
-import { createProvisionedStaffAccount } from "@/integrations/firebase/client";
+import { auth, createProvisionedStaffAccount } from "@/integrations/firebase/client";
 import { parseStaffRole, staffRoleLabel, STAFF_ROLES, type StaffRole } from "@/lib/staff-roles";
+import { staffAuthErrorMessage, staffPasswordResetActionSettings } from "@/lib/staff-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +31,7 @@ function Team() {
   const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState<StaffRole>("cashier");
   const [creating, setCreating] = useState(false);
+  const [resettingEmail, setResettingEmail] = useState("");
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["staff"],
     queryFn: listStaff,
@@ -45,6 +47,23 @@ function Team() {
     toast.success("Staff added");
     setEmail("");
     qc.invalidateQueries({ queryKey: ["staff"] });
+  }
+  async function sendReset(email: string) {
+    setResettingEmail(email);
+    try {
+      await sendPasswordResetEmail(
+        auth,
+        email,
+        staffPasswordResetActionSettings(window.location.origin, import.meta.env.BASE_URL),
+      );
+      toast.success(
+        `Firebase accepted the reset request for ${email}. If the Firebase account exists, its owner should check their inbox and spam folder.`,
+      );
+    } catch (error) {
+      toast.error(staffAuthErrorMessage(error, window.location.hostname));
+    } finally {
+      setResettingEmail("");
+    }
   }
   async function remove(email: string) {
     if (!confirm("Remove this access?")) return;
@@ -63,7 +82,7 @@ function Team() {
     try {
       user = await createProvisionedStaffAccount(newEmail, newPassword);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not create staff account.");
+      toast.error(staffAuthErrorMessage(error, window.location.hostname));
       setCreating(false);
       return;
     }
@@ -95,8 +114,9 @@ function Team() {
       <div className="eyebrow">Access</div>
       <h1 className="mt-2 text-4xl">Staff</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Only administrators can create accounts or grant staff access. Customers cannot assign
-        themselves a staff role.
+        Create Firebase sign-in accounts for hotel and restaurant staff here. Legacy Supabase
+        passwords do not transfer. Only administrators can create accounts, send reset links, or
+        grant staff access.
       </p>
       <form
         onSubmit={createAccount}
@@ -146,8 +166,9 @@ function Team() {
           {creating ? "Creating…" : "Create account"}
         </Button>
         <p className="text-xs leading-relaxed text-muted-foreground sm:col-span-2">
-          Share the initial password privately. Email verification is not required; staff can use
-          the password-reset link on the sign-in page if they forget it.
+          Share the initial password privately. Staff can change a forgotten password using the
+          email reset link on the sign-in page. If the email already has a Firebase account, use
+          “Grant access” below if needed and send a reset link from the staff list.
         </p>
       </form>
       <div className="mt-6 bg-card p-5 shadow-luxe">
@@ -197,9 +218,20 @@ function Team() {
                 {staffRoleLabel(s.role)}
               </Badge>
             </div>
-            <Button size="icon" variant="ghost" onClick={() => remove(s.email)}>
-              <Trash2 />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void sendReset(s.email)}
+                disabled={resettingEmail === s.email}
+              >
+                <KeyRound />
+                {resettingEmail === s.email ? "Sending…" : "Reset password"}
+              </Button>
+              <Button size="icon" variant="ghost" onClick={() => remove(s.email)}>
+                <Trash2 />
+              </Button>
+            </div>
           </div>
         ))}
       </div>
