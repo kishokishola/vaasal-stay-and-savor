@@ -1,14 +1,15 @@
 export const STAFF_ROLES = ["admin", "cashier", "cashier_restaurant", "kitchen"] as const;
 
 export type StaffRole = (typeof STAFF_ROLES)[number];
-export type StaffHomeRoute = "/staff" | "/staff/cashier" | "/staff/pos" | "/staff/kitchen";
+export type StaffHomeRoute =
+  "/staff" | "/staff/cashier" | "/staff/restaurant" | "/staff/pos" | "/staff/kitchen";
 
 export function parseStaffRole(role: unknown): StaffRole | null {
   return STAFF_ROLES.find((staffRole) => staffRole === role) ?? null;
 }
 
 export function staffHomeRoute(role: StaffRole): StaffHomeRoute {
-  if (role === "cashier_restaurant") return "/staff/pos";
+  if (role === "cashier_restaurant") return "/staff/restaurant";
   if (role === "kitchen") return "/staff/kitchen";
   return role === "cashier" ? "/staff/cashier" : "/staff";
 }
@@ -35,7 +36,11 @@ export function canAccessStaffRoute(role: StaffRole, pathname: string) {
     );
   }
   if (role === "cashier_restaurant") {
-    return pathname.startsWith("/staff/pos") || pathname.startsWith("/staff/orders");
+    return (
+      pathname.startsWith("/staff/restaurant") ||
+      pathname.startsWith("/staff/pos") ||
+      pathname.startsWith("/staff/orders")
+    );
   }
   return pathname.startsWith("/staff/kitchen");
 }

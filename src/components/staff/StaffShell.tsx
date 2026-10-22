@@ -15,6 +15,8 @@ import {
   CreditCard,
   Settings,
   Plus,
+  BarChart3,
+  ClipboardList,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -72,7 +74,7 @@ export function StaffShell({ role, children }: { role: StaffRole; children: Reac
         { to: "/staff/menu", label: "Food Menu", icon: UtensilsCrossed },
         { to: "/staff/calendar", label: "Room Calendar", icon: CalendarCheck },
         { to: "/staff/petty-cash", label: "Petty Cash", icon: Wallet },
-        { to: "/staff/payments", label: "Track Payments", icon: CreditCard },
+        { to: "/staff/funds", label: "Track Payments", icon: CreditCard },
         { to: "/staff/bookings", label: "Booking History", icon: CalendarCheck },
         {
           to: "/staff/payments",
@@ -104,8 +106,21 @@ export function StaffShell({ role, children }: { role: StaffRole; children: Reac
         ]
       : role === "cashier_restaurant"
         ? [
-            { to: "/staff/pos", label: "Restaurant POS", icon: ShoppingCart },
-            { to: "/staff/orders", label: "Order History", icon: Receipt, badge: unpaidOrders },
+            { to: "/staff/restaurant", label: "Dashboard", icon: LayoutDashboard, exact: true },
+            { to: "/staff/pos", label: "Create Order", icon: ShoppingCart },
+            {
+              to: "/staff/orders",
+              hash: () => "order-queue",
+              label: "Order Queue",
+              icon: ClipboardList,
+              badge: unpaidOrders,
+            },
+            {
+              to: "/staff/orders",
+              hash: () => "restaurant-reports",
+              label: "Reports",
+              icon: BarChart3,
+            },
           ]
         : [{ to: "/staff/kitchen", label: "Kitchen Queue", icon: ChefHat }];
   const portalSubtitle = isAdmin
@@ -156,10 +171,12 @@ export function StaffShell({ role, children }: { role: StaffRole; children: Reac
           {links.map((link) => {
             const Icon = link.icon;
             const iconOnly = !isAdmin || collapsed;
+            const hashOption = "hash" in link ? { hash: link.hash } : {};
             return (
               <Link
                 key={link.label}
                 to={link.to}
+                {...hashOption}
                 activeOptions={{ exact: !!link.exact }}
                 title={iconOnly ? link.label : undefined}
                 aria-label={link.label}
@@ -200,17 +217,21 @@ export function StaffShell({ role, children }: { role: StaffRole; children: Reac
           <BrandLogo size="staff" subtitle={portalSubtitle} />
         </Link>
         <div className="flex gap-2 overflow-x-auto border-b border-sidebar-border/60 bg-sidebar/90 p-3 text-sidebar-foreground shadow-luxe backdrop-blur-xl md:hidden">
-          {links.map((l) => (
-            <Link
-              key={l.label}
-              to={l.to}
-              className="whitespace-nowrap px-3 py-1 text-xs"
-              activeProps={{ className: "text-sidebar-primary" }}
-            >
-              {l.label}
-              {!!l.badge && <span className="ml-1 text-destructive">({l.badge})</span>}
-            </Link>
-          ))}
+          {links.map((link) => {
+            const hashOption = "hash" in link ? { hash: link.hash } : {};
+            return (
+              <Link
+                key={link.label}
+                to={link.to}
+                {...hashOption}
+                className="whitespace-nowrap px-3 py-1 text-xs"
+                activeProps={{ className: "text-sidebar-primary" }}
+              >
+                {link.label}
+                {!!link.badge && <span className="ml-1 text-destructive">({link.badge})</span>}
+              </Link>
+            );
+          })}
           <button onClick={logout} className="px-3 text-xs">
             Sign out
           </button>

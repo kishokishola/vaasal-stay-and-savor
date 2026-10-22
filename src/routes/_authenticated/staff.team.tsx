@@ -4,13 +4,22 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { deleteUser, sendPasswordResetEmail, type User } from "firebase/auth";
 import { KeyRound, Trash2, UserPlus } from "lucide-react";
-import { assignStaff, listStaff, removeStaff } from "@/lib/firebase-data";
+import {
+  approveStaffRegistration,
+  assignStaff,
+  dismissStaffRegistration,
+  listStaff,
+  listStaffRegistrations,
+  removeStaff,
+  subscribeToStaffRegistrations,
+} from "@/lib/firebase-data";
 import { auth, createProvisionedStaffAccount } from "@/integrations/firebase/client";
 import { parseStaffRole, staffRoleLabel, STAFF_ROLES, type StaffRole } from "@/lib/staff-roles";
 import { staffAuthErrorMessage, staffPasswordResetActionSettings } from "@/lib/staff-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
 import {
   Select,
   SelectContent,
@@ -32,10 +41,17 @@ function Team() {
   const [newRole, setNewRole] = useState<StaffRole>("cashier");
   const [creating, setCreating] = useState(false);
   const [resettingEmail, setResettingEmail] = useState("");
+  const [approvingEmail, setApprovingEmail] = useState("");
+  const [registrationRoles, setRegistrationRoles] = useState<Record<string, StaffRole>>({});
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["staff"],
     queryFn: listStaff,
   });
+  const registrations = useQuery({
+    queryKey: ["staff-registrations"],
+    queryFn: listStaffRegistrations,
+  });
+  useFirestoreRealtime(["staff-registrations"], subscribeToStaffRegistrations);
   async function add(e: React.FormEvent) {
     e.preventDefault();
     try {
@@ -63,6 +79,30 @@ function Team() {
       toast.error(staffAuthErrorMessage(error, window.location.hostname));
     } finally {
       setResettingEmail("");
+    }
+  }
+  async function approveRegistration(email: string) {
+    setApprovingEmail(email);
+    try {
+      await approveStaffRegistration(email, registrationRoles[email] ?? "cashier");
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["staff"] }),
+        qc.invalidateQueries({ queryKey: ["staff-registrations"] }),
+      ]);
+      toast.success(`${email} can now sign in to the assigned staff dashboard.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not approve staff access.");
+    } finally {
+      setApprovingEmail("");
+    }
+  }
+  async function dismissRegistration(email: string) {
+    if (!confirm(`Dismiss the access request for ${email}?`)) return;
+    try {
+      await dismissStaffRegistration(email);
+      await qc.invalidateQueries({ queryKey: ["staff-registrations"] });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not dismiss access request.");
     }
   }
   async function remove(email: string) {
@@ -202,6 +242,77 @@ function Team() {
           </Select>
           <Button type="submit">Grant access</Button>
         </form>
+      </div>
+      <div className="mt-6 divide-y divide-border bg-card shadow-luxe">
+        <div className="p-5">
+          <h2 className="font-display text-xl">Staff access requests</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Approve a request only after verifying the person. Selecting a role grants access to
+            that role's dashboard and navigation.
+          </p>
+        </div>
+        {registrations.isLoading && (
+          <p className="p-4 text-sm text-muted-foreground">Loading access requests…</p>
+        )}
+        {registrations.isError && (
+          <p role="alert" className="p-4 text-sm text-destructive">
+            Could not load access requests: {registrations.error.message}
+          </p>
+        )}
+        {registrations.data?.length === 0 && (
+          <p className="p-4 text-sm text-muted-foreground">No pending staff requests.</p>
+        )}
+        {registrations.data?.map((request) => (
+          <div
+            key={request.email}
+            className="flex flex-wrap items-center justify-between gap-3 p-4"
+          >
+            <div>
+              <div className="font-medium">{request.email}</div>
+              <div className="text-xs text-muted-foreground">
+                Requested {new Date(request.created_at).toLocaleString()}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select
+                value={registrationRoles[request.email] ?? "cashier"}
+                onValueChange={(value) => {
+                  const selectedRole = parseStaffRole(value);
+                  if (selectedRole)
+                    setRegistrationRoles((current) => ({
+                      ...current,
+                      [request.email]: selectedRole,
+                    }));
+                }}
+                disabled={approvingEmail === request.email}
+              >
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STAFF_ROLES.filter((staffRole) => staffRole !== "admin").map((staffRole) => (
+                    <SelectItem key={staffRole} value={staffRole}>
+                      {staffRoleLabel(staffRole)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                onClick={() => void approveRegistration(request.email)}
+                disabled={approvingEmail === request.email}
+              >
+                {approvingEmail === request.email ? "Approving…" : "Approve"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => void dismissRegistration(request.email)}
+                disabled={approvingEmail === request.email}
+              >
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        ))}
       </div>
       <div className="mt-6 divide-y divide-border bg-card shadow-luxe">
         {isLoading && <p className="p-4 text-sm text-muted-foreground">Loading staff…</p>}

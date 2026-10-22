@@ -9,7 +9,7 @@ import {
   signOut,
 } from "firebase/auth";
 import { auth, isFirebaseConfigured } from "@/integrations/firebase/client";
-import { getStaffAccess } from "@/lib/firebase-data";
+import { getStaffAccess, submitStaffRegistration } from "@/lib/firebase-data";
 import { STAFF_ROLES, staffHomeRoute, staffRoleLabel, type StaffRole } from "@/lib/staff-roles";
 import { staffAuthErrorMessage, staffPasswordResetActionSettings } from "@/lib/staff-auth";
 import { Button } from "@/components/ui/button";
@@ -62,18 +62,27 @@ function AuthPage() {
   useEffect(() => {
     const search = new URLSearchParams(window.location.search);
     setPasswordResetComplete(search.get("passwordReset") === "complete");
-    return onAuthStateChanged(auth, async (user) => {
+    let disposed = false;
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user?.email || submitting.current) return;
       try {
         const role = await getStaffAccess(user.email);
+        if (disposed || submitting.current) return;
         if (role) nav({ to: staffHomeRoute(role), replace: true });
       } catch (error) {
+        if (disposed || submitting.current) return;
         console.error("Could not check staff access after sign-in.", error);
         setAccessMessage(
-          "Sign-in worked, but staff access could not be checked. Ask the site owner to publish Firestore rules.",
+          error instanceof Error
+            ? `Staff access could not be checked: ${error.message}`
+            : "Staff access could not be checked. Check the staff role and Firestore rules.",
         );
       }
     });
+    return () => {
+      disposed = true;
+      unsubscribe();
+    };
   }, [nav]);
 
   async function submit(e: React.FormEvent) {
@@ -156,18 +165,34 @@ function AuthPage() {
     setBusy(true);
     setAccessMessage("");
     setSignupMessage("");
+    submitting.current = true;
+    let accountCreated = false;
     try {
-      await createUserWithEmailAndPassword(auth, address, password);
+      const credential = await createUserWithEmailAndPassword(auth, address, password);
+      accountCreated = true;
+      await submitStaffRegistration(address, credential.user.uid);
       await signOut(auth);
       setPassword("");
       setConfirmPassword("");
       setMode("signin");
       setSignupMessage(
-        "Your staff login has been created. For security, an administrator must assign your staff role before you can enter a dashboard. Use your email as your username; you can reset your password from this page.",
+        "Your staff login and access request are submitted. The administrator must approve your role before you can enter a dashboard. Use your email as your username; password reset is available from sign-in.",
       );
     } catch (error) {
-      setAccessMessage(staffAuthErrorMessage(error, window.location.hostname));
+      if (accountCreated) {
+        try {
+          await signOut(auth);
+        } catch (signOutError) {
+          console.error("Could not sign out after incomplete staff registration.", signOutError);
+        }
+        setAccessMessage(
+          `The Firebase login was created, but the staff approval request could not be saved. Ask the administrator to add ${address} from Staff → Grant access. ${staffAuthErrorMessage(error, window.location.hostname)}`,
+        );
+      } else {
+        setAccessMessage(staffAuthErrorMessage(error, window.location.hostname));
+      }
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }

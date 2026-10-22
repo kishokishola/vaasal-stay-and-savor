@@ -25,12 +25,14 @@ import { Route as AuthenticatedStaffBookingsRouteImport } from './routes/_authen
 import { Route as AuthenticatedStaffCalendarRouteImport } from './routes/_authenticated/staff.calendar'
 import { Route as AuthenticatedStaffCashierRouteImport } from './routes/_authenticated/staff.cashier'
 import { Route as AuthenticatedStaffCreateBookingRouteImport } from './routes/_authenticated/staff.create-booking'
+import { Route as AuthenticatedStaffFundsRouteImport } from './routes/_authenticated/staff.funds'
 import { Route as AuthenticatedStaffKitchenRouteImport } from './routes/_authenticated/staff.kitchen'
 import { Route as AuthenticatedStaffMenuRouteImport } from './routes/_authenticated/staff.menu'
 import { Route as AuthenticatedStaffOrdersRouteImport } from './routes/_authenticated/staff.orders'
 import { Route as AuthenticatedStaffPaymentsRouteImport } from './routes/_authenticated/staff.payments'
 import { Route as AuthenticatedStaffPettyCashRouteImport } from './routes/_authenticated/staff.petty-cash'
 import { Route as AuthenticatedStaffPosRouteImport } from './routes/_authenticated/staff.pos'
+import { Route as AuthenticatedStaffRestaurantRouteImport } from './routes/_authenticated/staff.restaurant'
 import { Route as AuthenticatedStaffRoomsRouteImport } from './routes/_authenticated/staff.rooms'
 import { Route as AuthenticatedStaffSettingsRouteImport } from './routes/_authenticated/staff.settings'
 import { Route as AuthenticatedStaffTeamRouteImport } from './routes/_authenticated/staff.team'
@@ -118,6 +120,11 @@ const AuthenticatedStaffCreateBookingRoute =
     path: '/create-booking',
     getParentRoute: () => AuthenticatedStaffRoute,
   } as any)
+const AuthenticatedStaffFundsRoute = AuthenticatedStaffFundsRouteImport.update({
+  id: '/funds',
+  path: '/funds',
+  getParentRoute: () => AuthenticatedStaffRoute,
+} as any)
 const AuthenticatedStaffKitchenRoute =
   AuthenticatedStaffKitchenRouteImport.update({
     id: '/kitchen',
@@ -152,6 +159,12 @@ const AuthenticatedStaffPosRoute = AuthenticatedStaffPosRouteImport.update({
   path: '/pos',
   getParentRoute: () => AuthenticatedStaffRoute,
 } as any)
+const AuthenticatedStaffRestaurantRoute =
+  AuthenticatedStaffRestaurantRouteImport.update({
+    id: '/restaurant',
+    path: '/restaurant',
+    getParentRoute: () => AuthenticatedStaffRoute,
+  } as any)
 const AuthenticatedStaffRoomsRoute = AuthenticatedStaffRoomsRouteImport.update({
   id: '/rooms',
   path: '/rooms',
@@ -184,12 +197,14 @@ export interface FileRoutesByFullPath {
   '/staff/calendar': typeof AuthenticatedStaffCalendarRoute
   '/staff/cashier': typeof AuthenticatedStaffCashierRoute
   '/staff/create-booking': typeof AuthenticatedStaffCreateBookingRoute
+  '/staff/funds': typeof AuthenticatedStaffFundsRoute
   '/staff/kitchen': typeof AuthenticatedStaffKitchenRoute
   '/staff/menu': typeof AuthenticatedStaffMenuRoute
   '/staff/orders': typeof AuthenticatedStaffOrdersRoute
   '/staff/payments': typeof AuthenticatedStaffPaymentsRoute
   '/staff/petty-cash': typeof AuthenticatedStaffPettyCashRoute
   '/staff/pos': typeof AuthenticatedStaffPosRoute
+  '/staff/restaurant': typeof AuthenticatedStaffRestaurantRoute
   '/staff/rooms': typeof AuthenticatedStaffRoomsRoute
   '/staff/settings': typeof AuthenticatedStaffSettingsRoute
   '/staff/team': typeof AuthenticatedStaffTeamRoute
@@ -209,12 +224,14 @@ export interface FileRoutesByTo {
   '/staff/calendar': typeof AuthenticatedStaffCalendarRoute
   '/staff/cashier': typeof AuthenticatedStaffCashierRoute
   '/staff/create-booking': typeof AuthenticatedStaffCreateBookingRoute
+  '/staff/funds': typeof AuthenticatedStaffFundsRoute
   '/staff/kitchen': typeof AuthenticatedStaffKitchenRoute
   '/staff/menu': typeof AuthenticatedStaffMenuRoute
   '/staff/orders': typeof AuthenticatedStaffOrdersRoute
   '/staff/payments': typeof AuthenticatedStaffPaymentsRoute
   '/staff/petty-cash': typeof AuthenticatedStaffPettyCashRoute
   '/staff/pos': typeof AuthenticatedStaffPosRoute
+  '/staff/restaurant': typeof AuthenticatedStaffRestaurantRoute
   '/staff/rooms': typeof AuthenticatedStaffRoomsRoute
   '/staff/settings': typeof AuthenticatedStaffSettingsRoute
   '/staff/team': typeof AuthenticatedStaffTeamRoute
@@ -237,12 +254,14 @@ export interface FileRoutesById {
   '/_authenticated/staff/calendar': typeof AuthenticatedStaffCalendarRoute
   '/_authenticated/staff/cashier': typeof AuthenticatedStaffCashierRoute
   '/_authenticated/staff/create-booking': typeof AuthenticatedStaffCreateBookingRoute
+  '/_authenticated/staff/funds': typeof AuthenticatedStaffFundsRoute
   '/_authenticated/staff/kitchen': typeof AuthenticatedStaffKitchenRoute
   '/_authenticated/staff/menu': typeof AuthenticatedStaffMenuRoute
   '/_authenticated/staff/orders': typeof AuthenticatedStaffOrdersRoute
   '/_authenticated/staff/payments': typeof AuthenticatedStaffPaymentsRoute
   '/_authenticated/staff/petty-cash': typeof AuthenticatedStaffPettyCashRoute
   '/_authenticated/staff/pos': typeof AuthenticatedStaffPosRoute
+  '/_authenticated/staff/restaurant': typeof AuthenticatedStaffRestaurantRoute
   '/_authenticated/staff/rooms': typeof AuthenticatedStaffRoomsRoute
   '/_authenticated/staff/settings': typeof AuthenticatedStaffSettingsRoute
   '/_authenticated/staff/team': typeof AuthenticatedStaffTeamRoute
@@ -265,12 +284,14 @@ export interface FileRouteTypes {
     | '/staff/calendar'
     | '/staff/cashier'
     | '/staff/create-booking'
+    | '/staff/funds'
     | '/staff/kitchen'
     | '/staff/menu'
     | '/staff/orders'
     | '/staff/payments'
     | '/staff/petty-cash'
     | '/staff/pos'
+    | '/staff/restaurant'
     | '/staff/rooms'
     | '/staff/settings'
     | '/staff/team'
@@ -290,12 +311,14 @@ export interface FileRouteTypes {
     | '/staff/calendar'
     | '/staff/cashier'
     | '/staff/create-booking'
+    | '/staff/funds'
     | '/staff/kitchen'
     | '/staff/menu'
     | '/staff/orders'
     | '/staff/payments'
     | '/staff/petty-cash'
     | '/staff/pos'
+    | '/staff/restaurant'
     | '/staff/rooms'
     | '/staff/settings'
     | '/staff/team'
@@ -317,12 +340,14 @@ export interface FileRouteTypes {
     | '/_authenticated/staff/calendar'
     | '/_authenticated/staff/cashier'
     | '/_authenticated/staff/create-booking'
+    | '/_authenticated/staff/funds'
     | '/_authenticated/staff/kitchen'
     | '/_authenticated/staff/menu'
     | '/_authenticated/staff/orders'
     | '/_authenticated/staff/payments'
     | '/_authenticated/staff/petty-cash'
     | '/_authenticated/staff/pos'
+    | '/_authenticated/staff/restaurant'
     | '/_authenticated/staff/rooms'
     | '/_authenticated/staff/settings'
     | '/_authenticated/staff/team'
@@ -456,6 +481,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStaffCreateBookingRouteImport
       parentRoute: typeof AuthenticatedStaffRoute
     }
+    '/_authenticated/staff/funds': {
+      id: '/_authenticated/staff/funds'
+      path: '/funds'
+      fullPath: '/staff/funds'
+      preLoaderRoute: typeof AuthenticatedStaffFundsRouteImport
+      parentRoute: typeof AuthenticatedStaffRoute
+    }
     '/_authenticated/staff/kitchen': {
       id: '/_authenticated/staff/kitchen'
       path: '/kitchen'
@@ -498,6 +530,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStaffPosRouteImport
       parentRoute: typeof AuthenticatedStaffRoute
     }
+    '/_authenticated/staff/restaurant': {
+      id: '/_authenticated/staff/restaurant'
+      path: '/restaurant'
+      fullPath: '/staff/restaurant'
+      preLoaderRoute: typeof AuthenticatedStaffRestaurantRouteImport
+      parentRoute: typeof AuthenticatedStaffRoute
+    }
     '/_authenticated/staff/rooms': {
       id: '/_authenticated/staff/rooms'
       path: '/rooms'
@@ -527,12 +566,14 @@ interface AuthenticatedStaffRouteChildren {
   AuthenticatedStaffCalendarRoute: typeof AuthenticatedStaffCalendarRoute
   AuthenticatedStaffCashierRoute: typeof AuthenticatedStaffCashierRoute
   AuthenticatedStaffCreateBookingRoute: typeof AuthenticatedStaffCreateBookingRoute
+  AuthenticatedStaffFundsRoute: typeof AuthenticatedStaffFundsRoute
   AuthenticatedStaffKitchenRoute: typeof AuthenticatedStaffKitchenRoute
   AuthenticatedStaffMenuRoute: typeof AuthenticatedStaffMenuRoute
   AuthenticatedStaffOrdersRoute: typeof AuthenticatedStaffOrdersRoute
   AuthenticatedStaffPaymentsRoute: typeof AuthenticatedStaffPaymentsRoute
   AuthenticatedStaffPettyCashRoute: typeof AuthenticatedStaffPettyCashRoute
   AuthenticatedStaffPosRoute: typeof AuthenticatedStaffPosRoute
+  AuthenticatedStaffRestaurantRoute: typeof AuthenticatedStaffRestaurantRoute
   AuthenticatedStaffRoomsRoute: typeof AuthenticatedStaffRoomsRoute
   AuthenticatedStaffSettingsRoute: typeof AuthenticatedStaffSettingsRoute
   AuthenticatedStaffTeamRoute: typeof AuthenticatedStaffTeamRoute
@@ -544,12 +585,14 @@ const AuthenticatedStaffRouteChildren: AuthenticatedStaffRouteChildren = {
   AuthenticatedStaffCalendarRoute: AuthenticatedStaffCalendarRoute,
   AuthenticatedStaffCashierRoute: AuthenticatedStaffCashierRoute,
   AuthenticatedStaffCreateBookingRoute: AuthenticatedStaffCreateBookingRoute,
+  AuthenticatedStaffFundsRoute: AuthenticatedStaffFundsRoute,
   AuthenticatedStaffKitchenRoute: AuthenticatedStaffKitchenRoute,
   AuthenticatedStaffMenuRoute: AuthenticatedStaffMenuRoute,
   AuthenticatedStaffOrdersRoute: AuthenticatedStaffOrdersRoute,
   AuthenticatedStaffPaymentsRoute: AuthenticatedStaffPaymentsRoute,
   AuthenticatedStaffPettyCashRoute: AuthenticatedStaffPettyCashRoute,
   AuthenticatedStaffPosRoute: AuthenticatedStaffPosRoute,
+  AuthenticatedStaffRestaurantRoute: AuthenticatedStaffRestaurantRoute,
   AuthenticatedStaffRoomsRoute: AuthenticatedStaffRoomsRoute,
   AuthenticatedStaffSettingsRoute: AuthenticatedStaffSettingsRoute,
   AuthenticatedStaffTeamRoute: AuthenticatedStaffTeamRoute,

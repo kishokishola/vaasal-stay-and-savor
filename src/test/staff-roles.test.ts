@@ -10,7 +10,7 @@ describe("staff roles", () => {
   it("maps the single sign-in role to its correct dashboard", () => {
     expect(staffHomeRoute("admin")).toBe("/staff");
     expect(staffHomeRoute("cashier")).toBe("/staff/cashier");
-    expect(staffHomeRoute("cashier_restaurant")).toBe("/staff/pos");
+    expect(staffHomeRoute("cashier_restaurant")).toBe("/staff/restaurant");
     expect(staffHomeRoute("kitchen")).toBe("/staff/kitchen");
   });
 
@@ -26,6 +26,7 @@ describe("staff roles", () => {
     expect(canAccessStaffRoute("cashier", "/staff/kitchen")).toBe(false);
     expect(canAccessStaffRoute("cashier", "/staff/team")).toBe(false);
     expect(canAccessStaffRoute("cashier_restaurant", "/staff/pos")).toBe(true);
+    expect(canAccessStaffRoute("cashier_restaurant", "/staff/restaurant")).toBe(true);
     expect(canAccessStaffRoute("cashier_restaurant", "/staff/team")).toBe(false);
     expect(canAccessStaffRoute("cashier_restaurant", "/staff/kitchen")).toBe(false);
     expect(canAccessStaffRoute("kitchen", "/staff/kitchen")).toBe(true);

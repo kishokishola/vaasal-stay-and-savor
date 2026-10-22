@@ -349,7 +349,7 @@ function Orders() {
         ))}
       </div>
 
-      <div className="mt-6 overflow-x-auto bg-card shadow-luxe">
+      <div id="order-queue" className="mt-6 overflow-x-auto bg-card shadow-luxe">
         <Table>
           <TableHeader>
             <TableRow>
@@ -463,7 +463,7 @@ function Orders() {
         </Table>
       </div>
 
-      <section className="mt-10">
+      <section id="customer-order-requests" className="mt-10">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <div className="eyebrow">Website orders</div>
@@ -576,7 +576,7 @@ function Orders() {
         </div>
       </section>
 
-      <section className="mt-10">
+      <section id="restaurant-reports" className="mt-10">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <div className="eyebrow">Restaurant reports</div>

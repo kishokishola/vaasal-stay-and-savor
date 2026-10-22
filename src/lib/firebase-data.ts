@@ -67,6 +67,11 @@ export type StaffMember = {
   email: string;
   role: StaffRole;
 };
+export type StaffRegistration = {
+  email: string;
+  uid: string;
+  created_at: string;
+};
 export type CustomerOrderRequest = {
   id: string;
   customer_name: string;
@@ -93,6 +98,14 @@ export type PettyCashEntry = {
   category: string;
   created_at: string;
   created_by: string;
+};
+export type CashDeposit = {
+  id: string;
+  deposit_date: string;
+  amount: number;
+  deposited_by: string;
+  notes: string;
+  created_at: string;
 };
 const coll = (name: string) => collection(db, name);
 const refFor = (name: string, id: string) => doc(db, name, id);
@@ -214,6 +227,8 @@ export const subscribeToOrders: ChangeListener = (onChange, onError) =>
   subscribeToCollection("orders", onChange, onError);
 export const subscribeToCustomerOrderRequests: ChangeListener = (onChange, onError) =>
   subscribeToCollection("customer_order_requests", onChange, onError);
+export const subscribeToStaffRegistrations: ChangeListener = (onChange, onError) =>
+  subscribeToCollection("staff_signup_requests", onChange, onError);
 
 export function subscribeToCustomerOrderRequest(
   id: string,
@@ -1029,6 +1044,39 @@ export const subscribeToPettyCash: ChangeListener = (onChange, onError) => {
   };
 };
 
+export async function getCashDeposits(): Promise<CashDeposit[]> {
+  requireFirebaseConfig();
+  const result = await getDocs(query(coll("cash_deposits"), orderBy("deposit_date", "desc")));
+  return result.docs.map((item) => withId<CashDeposit>(item.id, item.data() as CashDeposit));
+}
+
+export const subscribeToCashDeposits: ChangeListener = (onChange, onError) =>
+  subscribeToCollection("cash_deposits", onChange, onError);
+
+export async function recordCashDeposit(input: {
+  deposit_date: string;
+  amount: number;
+  notes: string;
+}) {
+  requireFirebaseConfig();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.deposit_date))
+    throw new Error("Choose a valid deposit date.");
+  if (!Number.isFinite(input.amount) || Math.round(input.amount * 100) <= 0)
+    throw new Error("Enter a deposit amount greater than zero.");
+  if (input.amount > 10_000_000) throw new Error("Cash deposits cannot exceed LKR 10,000,000.");
+  if (input.notes.trim().length > 255)
+    throw new Error("Deposit notes must be 255 characters or fewer.");
+  const actor = auth.currentUser?.email ?? auth.currentUser?.uid;
+  if (!actor) throw new Error("Sign in again before recording a cash deposit.");
+  await setDoc(doc(coll("cash_deposits")), {
+    deposit_date: input.deposit_date,
+    amount: Math.round(input.amount * 100) / 100,
+    deposited_by: actor,
+    notes: input.notes.trim(),
+    created_at: new Date().toISOString(),
+  });
+}
+
 export async function recordPettyCashTransaction(input: {
   kind: "top_up" | "expense";
   amount: number;
@@ -1141,6 +1189,52 @@ export async function listStaff() {
     if (typeof email !== "string" || !parsedRole) return [];
     return [{ role_id: item.id, user_id: item.id, email, role: parsedRole }];
   });
+}
+
+export async function submitStaffRegistration(email: string, uid: string) {
+  requireFirebaseConfig();
+  const normalized = normalizedEmail(email);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized))
+    throw new Error("Enter a valid email address.");
+  if (!uid) throw new Error("Could not verify the Firebase account.");
+  const requestRef = refFor("staff_signup_requests", normalized);
+  const existingRequest = await getDoc(requestRef);
+  if (existingRequest.exists()) {
+    if (existingRequest.data()["uid"] === uid) return;
+    throw new Error("A staff access request already exists for this email.");
+  }
+  await setDoc(requestRef, {
+    email: normalized,
+    uid,
+    created_at: new Date().toISOString(),
+  });
+}
+
+export async function listStaffRegistrations(): Promise<StaffRegistration[]> {
+  requireFirebaseConfig();
+  const result = await getDocs(query(coll("staff_signup_requests"), orderBy("created_at", "asc")));
+  return result.docs.flatMap((item) => {
+    const { email, uid, created_at } = item.data();
+    if (
+      typeof email !== "string" ||
+      typeof uid !== "string" ||
+      typeof created_at !== "string" ||
+      item.id !== normalizedEmail(email)
+    )
+      return [];
+    return [{ email, uid, created_at }];
+  });
+}
+
+export async function approveStaffRegistration(email: string, role: StaffRole) {
+  const normalized = normalizedEmail(email);
+  await assignStaff(normalized, role);
+  await deleteDoc(refFor("staff_signup_requests", normalized));
+}
+
+export async function dismissStaffRegistration(email: string) {
+  requireFirebaseConfig();
+  await deleteDoc(refFor("staff_signup_requests", normalizedEmail(email)));
 }
 
 export async function assignStaff(email: string, role: StaffRole) {
