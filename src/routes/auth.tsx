@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   onAuthStateChanged,
@@ -9,12 +9,20 @@ import {
 } from "firebase/auth";
 import { auth, isFirebaseConfigured } from "@/integrations/firebase/client";
 import { getStaffAccess } from "@/lib/firebase-data";
-import { staffHomeRoute, type StaffRole } from "@/lib/staff-roles";
+import { STAFF_ROLES, staffHomeRoute, staffRoleLabel, type StaffRole } from "@/lib/staff-roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { publicAsset } from "@/lib/hotel";
 import { BrandLogo } from "@/components/site/BrandLogo";
+import { ChefHat, ShieldCheck, UtensilsCrossed, UserRound, type LucideIcon } from "lucide-react";
+
+const staffRoleIcons: Record<StaffRole, LucideIcon> = {
+  admin: ShieldCheck,
+  cashier: UserRound,
+  cashier_restaurant: UtensilsCrossed,
+  kitchen: ChefHat,
+};
 
 function authErrorMessage(error: unknown) {
   const code =
@@ -32,6 +40,9 @@ function authErrorMessage(error: unknown) {
   }
   if (code === "auth/too-many-requests") {
     return "Too many attempts. Wait a few minutes, then try again.";
+  }
+  if (code === "auth/network-request-failed") {
+    return "Firebase could not be reached. Check your internet connection, disable VPN/ad-blocking temporarily, and try again. If it continues, allow vaasal-villa.firebaseapp.com and identitytoolkit.googleapis.com on this network.";
   }
   return error instanceof Error ? error.message : "Could not complete authentication.";
 }
@@ -58,13 +69,15 @@ function AuthPage() {
   const nav = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [selectedRole, setSelectedRole] = useState<StaffRole | null>(null);
   const [busy, setBusy] = useState(false);
   const [accessMessage, setAccessMessage] = useState("");
+  const submitting = useRef(false);
   const configured = isFirebaseConfigured();
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (user) => {
-      if (!user?.email) return;
+      if (!user?.email || submitting.current) return;
       try {
         const role = await getStaffAccess(user.email);
         if (role) nav({ to: staffHomeRoute(role), replace: true });
@@ -79,12 +92,17 @@ function AuthPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!selectedRole) {
+      setAccessMessage("Choose the staff portal assigned to your account before signing in.");
+      return;
+    }
     if (!configured) {
       toast.error(
         "Firebase is not configured yet. Ask the site administrator to finish Firebase setup.",
       );
       return;
     }
+    submitting.current = true;
     setBusy(true);
 
     try {
@@ -95,8 +113,14 @@ function AuthPage() {
       } catch (error) {
         console.error("Could not check staff access after sign-in.", error);
         await signOut(auth);
+        const code =
+          error && typeof error === "object" && "code" in error && typeof error.code === "string"
+            ? error.code
+            : "";
         setAccessMessage(
-          "Sign-in worked, but staff access could not be checked. Ask the site owner to publish Firestore rules.",
+          code === "unavailable" || code.endsWith("/unavailable")
+            ? "Firebase sign-in worked, but the staff-role database could not be reached. Check your network and try again."
+            : "Sign-in worked, but staff access could not be checked. Ask the site owner to verify Firestore rules and staff access.",
         );
         return;
       }
@@ -107,11 +131,19 @@ function AuthPage() {
         );
         return;
       }
+      if (role !== selectedRole) {
+        await signOut(auth);
+        setAccessMessage(
+          `This account is assigned to ${staffRoleLabel(role)}. Select that portal and sign in again.`,
+        );
+        return;
+      }
       setAccessMessage("");
       nav({ to: staffHomeRoute(role), replace: true });
     } catch (error) {
       toast.error(authErrorMessage(error));
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }
@@ -170,15 +202,53 @@ function AuthPage() {
           </div>
           <form
             onSubmit={submit}
-            className="space-y-6 rounded-sm border border-border/80 bg-card p-6 shadow-luxe sm:p-8 md:border-0 md:bg-transparent md:p-0 md:shadow-none"
+            className="glass-panel space-y-6 rounded-sm p-6 shadow-luxe sm:p-8 md:p-8"
           >
             <div>
               <p className="eyebrow">Secure staff portal</p>
               <h1 className="mt-2 text-4xl">Welcome back</h1>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Sign in with your Firebase staff email and password.
+                Choose your assigned staff portal, then sign in with your staff email and password.
               </p>
             </div>
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">Staff portal</legend>
+              <div className="grid grid-cols-2 gap-2">
+                {STAFF_ROLES.map((role) => {
+                  const Icon = staffRoleIcons[role];
+                  const selected = selectedRole === role;
+                  return (
+                    <label
+                      key={role}
+                      className={`flex min-h-12 cursor-pointer items-center gap-2 rounded-sm border px-3 py-2 text-left text-sm transition ${
+                        selected
+                          ? "border-primary bg-primary/10 text-primary ring-1 ring-primary/40"
+                          : "border-border/70 bg-white/30 text-foreground hover:border-primary/50 hover:bg-white/50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="staff-role"
+                        value={role}
+                        checked={selected}
+                        disabled={busy}
+                        onChange={() => {
+                          setSelectedRole(role);
+                          setAccessMessage("");
+                        }}
+                        className="size-4 shrink-0 accent-primary"
+                      />
+                      <Icon className="size-4 shrink-0" />
+                      <span>{staffRoleLabel(role)}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Your role is checked against your staff account after sign-in. Choosing a portal
+                does not grant access.
+              </p>
+            </fieldset>
             {accessMessage && (
               <p
                 role="alert"

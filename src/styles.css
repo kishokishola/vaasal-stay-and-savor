@@ -51,16 +51,16 @@
   --card-foreground: oklch(0.25 0.04 40);
   --popover: oklch(0.99 0.01 75);
   --popover-foreground: oklch(0.25 0.04 40);
-  --primary: oklch(0.52 0.12 45);          /* sienna #a0522d */
+  --primary: oklch(0.52 0.12 45); /* sienna #a0522d */
   --primary-foreground: oklch(0.98 0.01 75);
   --secondary: oklch(0.92 0.03 70);
   --secondary-foreground: oklch(0.32 0.06 40);
   --muted: oklch(0.93 0.02 70);
   --muted-foreground: oklch(0.5 0.04 45);
-  --accent: oklch(0.66 0.12 60);           /* copper #cd7f32 */
+  --accent: oklch(0.66 0.12 60); /* copper #cd7f32 */
   --accent-foreground: oklch(0.2 0.04 40);
-  --gold: oklch(0.83 0.1 80);              /* #e8c07a */
-  --espresso: oklch(0.33 0.07 38);         /* #6b3a2a */
+  --gold: oklch(0.83 0.1 80); /* #e8c07a */
+  --espresso: oklch(0.33 0.07 38); /* #6b3a2a */
   --espresso-foreground: oklch(0.95 0.03 80);
   --destructive: oklch(0.55 0.2 27);
   --destructive-foreground: oklch(0.98 0 0);
@@ -81,7 +81,9 @@
 }
 
 @layer base {
-  * { border-color: var(--color-border); }
+  * {
+    border-color: var(--color-border);
+  }
   body {
     background-color: var(--color-background);
     background-image:
@@ -91,16 +93,24 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
   }
-  h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 400; letter-spacing: -0.01em; }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: -0.01em;
+  }
 }
 
 @layer utilities {
-  .bg-card {
-    background-color: color-mix(in oklch, var(--color-card) 76%, transparent);
+  .bg-card,
+  .glass-panel {
+    background-color: color-mix(in oklch, var(--color-card) 70%, transparent) !important;
     border: 1px solid color-mix(in oklch, var(--color-border) 72%, transparent);
     box-shadow: 0 16px 42px -28px oklch(0.25 0.04 40 / 0.38);
-    -webkit-backdrop-filter: blur(18px) saturate(145%);
-    backdrop-filter: blur(18px) saturate(145%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%) !important;
+    backdrop-filter: blur(20px) saturate(150%) !important;
   }
 }
 
@@ -111,21 +121,48 @@
   color: var(--accent);
   font-weight: 500;
 }
-@utility bg-hero-overlay { background: var(--gradient-hero); }
-@utility bg-gold-gradient { background: var(--gradient-gold); }
-@utility shadow-luxe { box-shadow: var(--shadow-luxe); }
+@utility bg-hero-overlay {
+  background: var(--gradient-hero);
+}
+@utility bg-gold-gradient {
+  background: var(--gradient-gold);
+}
+@utility shadow-luxe {
+  box-shadow: var(--shadow-luxe);
+}
 @utility gold-rule {
-  height: 1px; width: 4rem; background: var(--gradient-gold);
+  height: 1px;
+  width: 4rem;
+  background: var(--gradient-gold);
 }
 @utility fade-up {
-  animation: fadeUp 1s cubic-bezier(.2,.7,.2,1) both;
+  animation: fadeUp 1s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
-@keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 
 @utility reveal {
   opacity: 0;
   transform: translateY(40px);
-  transition: opacity 1s cubic-bezier(.2,.7,.2,1), transform 1s cubic-bezier(.2,.7,.2,1);
-  &[data-shown="true"] { opacity: 1; transform: none; }
+  transition:
+    opacity 1s cubic-bezier(0.2, 0.7, 0.2, 1),
+    transform 1s cubic-bezier(0.2, 0.7, 0.2, 1);
+  &[data-shown="true"] {
+    opacity: 1;
+    transform: none;
+  }
 }
-@media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
