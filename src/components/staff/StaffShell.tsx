@@ -88,7 +88,7 @@ export function StaffShell({ role, children }: { role: StaffRole; children: Reac
       ]
     : isHotelCashier
       ? [
-          { to: "/staff", label: "Dashboard", icon: LayoutDashboard, exact: true },
+          { to: "/staff/cashier", label: "Dashboard", icon: LayoutDashboard, exact: true },
           { to: "/staff/create-booking", label: "Create Booking", icon: Plus },
           {
             to: "/staff/bookings",
@@ -125,7 +125,7 @@ export function StaffShell({ role, children }: { role: StaffRole; children: Reac
   return (
     <div className="flex min-h-screen">
       <aside
-        className={`hidden shrink-0 flex-col bg-sidebar text-sidebar-foreground transition-[width] md:flex ${
+        className={`hidden shrink-0 flex-col border-r border-sidebar-border/60 bg-sidebar/90 text-sidebar-foreground shadow-luxe backdrop-blur-xl transition-[width] md:flex ${
           isAdmin ? (collapsed ? "w-[4.5rem]" : "w-60") : "w-[4.5rem]"
         }`}
       >
@@ -196,11 +196,11 @@ export function StaffShell({ role, children }: { role: StaffRole; children: Reac
       <div className="flex-1 overflow-x-hidden">
         <Link
           to="/"
-          className="flex items-center border-b border-sidebar-border bg-sidebar px-4 py-3 text-sidebar-foreground md:hidden"
+          className="flex items-center border-b border-sidebar-border/60 bg-sidebar/90 px-4 py-3 text-sidebar-foreground shadow-luxe backdrop-blur-xl md:hidden"
         >
           <BrandLogo size="staff" subtitle={portalSubtitle} />
         </Link>
-        <div className="flex gap-2 overflow-x-auto bg-sidebar p-3 text-sidebar-foreground md:hidden">
+        <div className="flex gap-2 overflow-x-auto border-b border-sidebar-border/60 bg-sidebar/90 p-3 text-sidebar-foreground shadow-luxe backdrop-blur-xl md:hidden">
           {links.map((l) => (
             <Link
               key={l.label}

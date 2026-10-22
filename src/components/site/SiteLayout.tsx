@@ -35,8 +35,8 @@ export function SiteLayout({
       <header
         className={
           transparent
-            ? "absolute inset-x-0 top-0 z-40 text-espresso-foreground"
-            : "sticky top-0 z-40 bg-espresso text-espresso-foreground"
+            ? "absolute inset-x-0 top-0 z-40 border-b border-white/10 bg-espresso/20 text-espresso-foreground backdrop-blur-md"
+            : "sticky top-0 z-40 border-b border-white/10 bg-espresso/85 text-espresso-foreground shadow-luxe backdrop-blur-xl"
         }
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
@@ -80,7 +80,7 @@ export function SiteLayout({
           </button>
         </div>
         {open && (
-          <div className="flex flex-col gap-4 bg-espresso px-6 pb-6 md:hidden">
+          <div className="flex flex-col gap-4 border-t border-white/10 bg-espresso/90 px-6 pb-6 backdrop-blur-xl md:hidden">
             {nav.map((n) => (
               <Link
                 key={n.to}

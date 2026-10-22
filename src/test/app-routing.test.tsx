@@ -14,4 +14,12 @@ describe("App routing", () => {
 
     expect(matches.at(-1)?.routeId).not.toBe(rootRouteId);
   });
+
+  it("matches the dedicated hotel cashier dashboard", () => {
+    const router = createRouter({ routeTree, context: { queryClient: new QueryClient() } });
+
+    const matches = router.matchRoutes("/staff/cashier");
+
+    expect(matches.at(-1)?.routeId).toBe("/_authenticated/staff/cashier");
+  });
 });

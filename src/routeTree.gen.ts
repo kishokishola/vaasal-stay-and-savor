@@ -23,6 +23,7 @@ import { Route as RoomsCodeRouteImport } from './routes/rooms.$code'
 import { Route as AuthenticatedStaffIndexRouteImport } from './routes/_authenticated/staff.index'
 import { Route as AuthenticatedStaffBookingsRouteImport } from './routes/_authenticated/staff.bookings'
 import { Route as AuthenticatedStaffCalendarRouteImport } from './routes/_authenticated/staff.calendar'
+import { Route as AuthenticatedStaffCashierRouteImport } from './routes/_authenticated/staff.cashier'
 import { Route as AuthenticatedStaffCreateBookingRouteImport } from './routes/_authenticated/staff.create-booking'
 import { Route as AuthenticatedStaffKitchenRouteImport } from './routes/_authenticated/staff.kitchen'
 import { Route as AuthenticatedStaffMenuRouteImport } from './routes/_authenticated/staff.menu'
@@ -105,6 +106,12 @@ const AuthenticatedStaffCalendarRoute =
     path: '/calendar',
     getParentRoute: () => AuthenticatedStaffRoute,
   } as any)
+const AuthenticatedStaffCashierRoute =
+  AuthenticatedStaffCashierRouteImport.update({
+    id: '/cashier',
+    path: '/cashier',
+    getParentRoute: () => AuthenticatedStaffRoute,
+  } as any)
 const AuthenticatedStaffCreateBookingRoute =
   AuthenticatedStaffCreateBookingRouteImport.update({
     id: '/create-booking',
@@ -175,6 +182,7 @@ export interface FileRoutesByFullPath {
   '/rooms/': typeof RoomsIndexRoute
   '/staff/bookings': typeof AuthenticatedStaffBookingsRoute
   '/staff/calendar': typeof AuthenticatedStaffCalendarRoute
+  '/staff/cashier': typeof AuthenticatedStaffCashierRoute
   '/staff/create-booking': typeof AuthenticatedStaffCreateBookingRoute
   '/staff/kitchen': typeof AuthenticatedStaffKitchenRoute
   '/staff/menu': typeof AuthenticatedStaffMenuRoute
@@ -199,6 +207,7 @@ export interface FileRoutesByTo {
   '/rooms': typeof RoomsIndexRoute
   '/staff/bookings': typeof AuthenticatedStaffBookingsRoute
   '/staff/calendar': typeof AuthenticatedStaffCalendarRoute
+  '/staff/cashier': typeof AuthenticatedStaffCashierRoute
   '/staff/create-booking': typeof AuthenticatedStaffCreateBookingRoute
   '/staff/kitchen': typeof AuthenticatedStaffKitchenRoute
   '/staff/menu': typeof AuthenticatedStaffMenuRoute
@@ -226,6 +235,7 @@ export interface FileRoutesById {
   '/rooms/': typeof RoomsIndexRoute
   '/_authenticated/staff/bookings': typeof AuthenticatedStaffBookingsRoute
   '/_authenticated/staff/calendar': typeof AuthenticatedStaffCalendarRoute
+  '/_authenticated/staff/cashier': typeof AuthenticatedStaffCashierRoute
   '/_authenticated/staff/create-booking': typeof AuthenticatedStaffCreateBookingRoute
   '/_authenticated/staff/kitchen': typeof AuthenticatedStaffKitchenRoute
   '/_authenticated/staff/menu': typeof AuthenticatedStaffMenuRoute
@@ -253,6 +263,7 @@ export interface FileRouteTypes {
     | '/rooms/'
     | '/staff/bookings'
     | '/staff/calendar'
+    | '/staff/cashier'
     | '/staff/create-booking'
     | '/staff/kitchen'
     | '/staff/menu'
@@ -277,6 +288,7 @@ export interface FileRouteTypes {
     | '/rooms'
     | '/staff/bookings'
     | '/staff/calendar'
+    | '/staff/cashier'
     | '/staff/create-booking'
     | '/staff/kitchen'
     | '/staff/menu'
@@ -303,6 +315,7 @@ export interface FileRouteTypes {
     | '/rooms/'
     | '/_authenticated/staff/bookings'
     | '/_authenticated/staff/calendar'
+    | '/_authenticated/staff/cashier'
     | '/_authenticated/staff/create-booking'
     | '/_authenticated/staff/kitchen'
     | '/_authenticated/staff/menu'
@@ -429,6 +442,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStaffCalendarRouteImport
       parentRoute: typeof AuthenticatedStaffRoute
     }
+    '/_authenticated/staff/cashier': {
+      id: '/_authenticated/staff/cashier'
+      path: '/cashier'
+      fullPath: '/staff/cashier'
+      preLoaderRoute: typeof AuthenticatedStaffCashierRouteImport
+      parentRoute: typeof AuthenticatedStaffRoute
+    }
     '/_authenticated/staff/create-booking': {
       id: '/_authenticated/staff/create-booking'
       path: '/create-booking'
@@ -505,6 +525,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedStaffRouteChildren {
   AuthenticatedStaffBookingsRoute: typeof AuthenticatedStaffBookingsRoute
   AuthenticatedStaffCalendarRoute: typeof AuthenticatedStaffCalendarRoute
+  AuthenticatedStaffCashierRoute: typeof AuthenticatedStaffCashierRoute
   AuthenticatedStaffCreateBookingRoute: typeof AuthenticatedStaffCreateBookingRoute
   AuthenticatedStaffKitchenRoute: typeof AuthenticatedStaffKitchenRoute
   AuthenticatedStaffMenuRoute: typeof AuthenticatedStaffMenuRoute
@@ -521,6 +542,7 @@ interface AuthenticatedStaffRouteChildren {
 const AuthenticatedStaffRouteChildren: AuthenticatedStaffRouteChildren = {
   AuthenticatedStaffBookingsRoute: AuthenticatedStaffBookingsRoute,
   AuthenticatedStaffCalendarRoute: AuthenticatedStaffCalendarRoute,
+  AuthenticatedStaffCashierRoute: AuthenticatedStaffCashierRoute,
   AuthenticatedStaffCreateBookingRoute: AuthenticatedStaffCreateBookingRoute,
   AuthenticatedStaffKitchenRoute: AuthenticatedStaffKitchenRoute,
   AuthenticatedStaffMenuRoute: AuthenticatedStaffMenuRoute,

@@ -84,10 +84,24 @@
   * { border-color: var(--color-border); }
   body {
     background-color: var(--color-background);
+    background-image:
+      radial-gradient(ellipse at 12% 8%, oklch(0.99 0.035 80 / 0.75), transparent 42%),
+      radial-gradient(ellipse at 88% 24%, oklch(0.92 0.045 65 / 0.38), transparent 38%);
+    background-attachment: fixed;
     color: var(--color-foreground);
     font-family: var(--font-sans);
   }
   h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 400; letter-spacing: -0.01em; }
+}
+
+@layer utilities {
+  .bg-card {
+    background-color: color-mix(in oklch, var(--color-card) 76%, transparent);
+    border: 1px solid color-mix(in oklch, var(--color-border) 72%, transparent);
+    box-shadow: 0 16px 42px -28px oklch(0.25 0.04 40 / 0.38);
+    -webkit-backdrop-filter: blur(18px) saturate(145%);
+    backdrop-filter: blur(18px) saturate(145%);
+  }
 }
 
 @utility eyebrow {
