@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { StaffShell } from "@/components/staff/StaffShell";
 import { BrandLogo } from "@/components/site/BrandLogo";
 import { getStaffAccess } from "@/lib/firebase-data";
+import { canAccessStaffRoute, staffHomeRoute } from "@/lib/staff-roles";
 
 export const Route = createFileRoute("/_authenticated/staff")({
   head: () => ({
@@ -44,9 +45,7 @@ function StaffLayout() {
         </div>
       </div>
     );
-  const isAdmin = roles === "admin";
-  const isCashier = roles === "cashier";
-  if (!isAdmin && !isCashier)
+  if (!roles)
     return (
       <div className="flex min-h-screen items-center justify-center p-8 text-center">
         <div className="space-y-5">
@@ -58,20 +57,10 @@ function StaffLayout() {
         </div>
       </div>
     );
-  const cashierAllowed =
-    loc.pathname === "/staff" ||
-    loc.pathname === "/staff/" ||
-    loc.pathname.startsWith("/staff/pos") ||
-    loc.pathname.startsWith("/staff/orders") ||
-    loc.pathname.startsWith("/staff/bookings") ||
-    loc.pathname.startsWith("/staff/calendar") ||
-    loc.pathname.startsWith("/staff/create-booking") ||
-    loc.pathname.startsWith("/staff/payments") ||
-    loc.pathname.startsWith("/staff/kitchen") ||
-    loc.pathname.startsWith("/staff/petty-cash");
-  if (!isAdmin && !cashierAllowed) return <Navigate to="/staff/pos" />;
+  if (!canAccessStaffRoute(roles, loc.pathname))
+    return <Navigate to={staffHomeRoute(roles)} replace />;
   return (
-    <StaffShell isAdmin={isAdmin}>
+    <StaffShell role={roles}>
       <Outlet />
     </StaffShell>
   );

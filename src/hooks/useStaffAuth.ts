@@ -39,7 +39,7 @@ export function useStaffAuth() {
       const isAdmin = role === "admin";
       return {
         isAuthenticated: true,
-        isStaff: isAdmin || role === "cashier",
+        isStaff: role !== null,
         isAdmin,
         userId: user.uid,
       };

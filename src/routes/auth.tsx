@@ -9,6 +9,7 @@ import {
 } from "firebase/auth";
 import { auth, isFirebaseConfigured } from "@/integrations/firebase/client";
 import { getStaffAccess } from "@/lib/firebase-data";
+import { staffHomeRoute, type StaffRole } from "@/lib/staff-roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,7 +67,7 @@ function AuthPage() {
       if (!user?.email) return;
       try {
         const role = await getStaffAccess(user.email);
-        if (role) nav({ to: "/staff", replace: true });
+        if (role) nav({ to: staffHomeRoute(role), replace: true });
       } catch (error) {
         console.error("Could not check staff access after sign-in.", error);
         setAccessMessage(
@@ -88,7 +89,7 @@ function AuthPage() {
 
     try {
       const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
-      let role: "admin" | "cashier" | null;
+      let role: StaffRole | null;
       try {
         role = await getStaffAccess(credential.user.email ?? "");
       } catch (error) {
@@ -102,12 +103,12 @@ function AuthPage() {
       if (!role) {
         await signOut(auth);
         setAccessMessage(
-          "This account is not assigned to hotel staff yet. Ask the project owner to add your email as an admin or cashier.",
+          "This account is not assigned a staff role yet. Ask the administrator to add you as admin, hotel cashier, restaurant cashier, or kitchen staff.",
         );
         return;
       }
       setAccessMessage("");
-      nav({ to: "/staff" });
+      nav({ to: staffHomeRoute(role), replace: true });
     } catch (error) {
       toast.error(authErrorMessage(error));
     } finally {

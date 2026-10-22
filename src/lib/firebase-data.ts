@@ -19,6 +19,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { auth, db, requireFirebaseConfig } from "@/integrations/firebase/client";
 import { hotelToday } from "@/lib/dates";
 import { collectedOrderAmount, paymentStatusFor, roomRate } from "@/lib/hotel";
+import { parseStaffRole, type StaffRole } from "@/lib/staff-roles";
 
 export type Room = Tables<"rooms"> & {
   created_at?: string;
@@ -64,7 +65,7 @@ export type StaffMember = {
   role_id: string;
   user_id: string;
   email: string;
-  role: "admin" | "cashier";
+  role: StaffRole;
 };
 export type CustomerOrderRequest = {
   id: string;
@@ -93,8 +94,6 @@ export type PettyCashEntry = {
   created_at: string;
   created_by: string;
 };
-type Role = "admin" | "cashier";
-
 const coll = (name: string) => collection(db, name);
 const refFor = (name: string, id: string) => doc(db, name, id);
 const withId = <T extends DocumentData>(id: string, data: T) =>
@@ -1130,8 +1129,7 @@ export async function getStaffAccess(email: string) {
   const normalized = normalizedEmail(email);
   const snapshot = await getDoc(refFor("staff_access", normalized));
   if (!snapshot.exists()) return null;
-  const role = snapshot.data()["role"];
-  return role === "admin" || role === "cashier" ? role : null;
+  return parseStaffRole(snapshot.data()["role"]);
 }
 
 export async function listStaff() {
@@ -1139,17 +1137,18 @@ export async function listStaff() {
   const result = await getDocs(query(coll("staff_access"), orderBy("email")));
   return result.docs.flatMap((item) => {
     const { email, role } = item.data();
-    if (typeof email !== "string" || (role !== "admin" && role !== "cashier")) return [];
-    return [{ role_id: item.id, user_id: item.id, email, role }];
+    const parsedRole = parseStaffRole(role);
+    if (typeof email !== "string" || !parsedRole) return [];
+    return [{ role_id: item.id, user_id: item.id, email, role: parsedRole }];
   });
 }
 
-export async function assignStaff(email: string, role: Role) {
+export async function assignStaff(email: string, role: StaffRole) {
   requireFirebaseConfig();
   const normalized = normalizedEmail(email);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized))
     throw new Error("Enter a valid email address.");
-  if (role !== "admin" && role !== "cashier") throw new Error("Choose a valid staff role.");
+  if (!parseStaffRole(role)) throw new Error("Choose a valid staff role.");
   await setDoc(refFor("staff_access", normalized), {
     email: normalized,
     role,

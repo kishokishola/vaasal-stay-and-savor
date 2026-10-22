@@ -11,14 +11,33 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/staff_access/$(request.auth.token.email.lower()));
     }
 
+    function staffRole() {
+      return get(/databases/$(database)/documents/staff_access/$(request.auth.token.email.lower())).data.role;
+    }
+
+    function roleIs(role) {
+      return staff() && staffRole() == role;
+    }
+
+    function hotelStaff() {
+      return roleIs("admin") || roleIs("cashier");
+    }
+
+    function restaurantStaff() {
+      return hotelStaff() || roleIs("cashier_restaurant");
+    }
+
+    function kitchenStaff() {
+      return hotelStaff() || roleIs("kitchen");
+    }
+
     function canCreateCustomerOrder() {
       return signedIn()
-        && (request.auth.token.firebase.sign_in_provider == "anonymous" || staff());
+        && (request.auth.token.firebase.sign_in_provider == "anonymous" || restaurantStaff());
     }
 
     function admin() {
-      return staff()
-        && get(/databases/$(database)/documents/staff_access/$(request.auth.token.email.lower())).data.role == "admin";
+      return roleIs("admin");
     }
 
     match /rooms/{roomId} {
@@ -32,7 +51,7 @@ service cloud.firestore {
     }
 
     match /bookings/{bookingId} {
-      allow create: if staff() || (request.resource.data.keys().hasOnly([
+      allow create: if hotelStaff() || (request.resource.data.keys().hasOnly([
           "room_id", "guest_name", "guest_email", "guest_phone", "check_in",
           "check_out", "guests", "notes", "total", "status", "created_at",
           "rate_currency", "rate_period", "paid_amount", "payment_status", "payment_history",
@@ -68,20 +87,21 @@ service cloud.firestore {
         && request.resource.data.payment_history.size() == 0
         && (request.resource.data.notes == null || request.resource.data.notes is string)
         && request.resource.data.created_at is string);
-      allow read: if staff()
+      allow read: if restaurantStaff()
         || (signedIn() && resource.data.created_by_uid == request.auth.uid);
-      allow update, delete: if staff();
+      allow update, delete: if hotelStaff();
     }
 
     match /room_night_locks/{lockId} {
       allow read: if true;
-      allow write: if staff();
+      allow write: if hotelStaff();
     }
 
     match /orders/{orderId} {
-      allow read, create: if staff();
+      allow read: if restaurantStaff() || kitchenStaff();
+      allow create: if restaurantStaff();
       allow update: if admin()
-        || (staff()
+        || (restaurantStaff()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             "status", "updated_at", "order_status_updated_at", "status_note", "status_history",
             "is_closed", "payment_status", "paid_amount", "payment_method", "payment_history",
@@ -95,7 +115,19 @@ service cloud.firestore {
           && (!("paid_amount" in request.resource.data)
             || (request.resource.data.paid_amount is number && request.resource.data.paid_amount >= 0))
           && (!("payment_status" in request.resource.data)
-            || request.resource.data.payment_status in ["paid", "unpaid", "partial", "refunded"]));
+            || request.resource.data.payment_status in ["paid", "unpaid", "partial", "refunded"]))
+        || (roleIs("kitchen")
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "status", "updated_at", "order_status_updated_at", "status_note", "status_history",
+            "is_closed"
+          ])
+          && request.resource.data.status in ["in_prep", "ready", "delivered"]
+          && request.resource.data.updated_at is string
+          && request.resource.data.order_status_updated_at is string
+          && request.resource.data.status_note is string
+          && request.resource.data.status_history is list
+          && (!("is_closed" in request.resource.data)
+            || request.resource.data.is_closed is bool));
       allow delete: if admin();
     }
 
@@ -136,26 +168,30 @@ service cloud.firestore {
             && request.resource.data.notes.size() <= 500))
         && request.resource.data.status == "pending"
         && request.resource.data.created_at is string;
-      allow read: if staff()
+      allow read: if restaurantStaff() || kitchenStaff()
         || (signedIn() && resource.data.created_by_uid == request.auth.uid);
-      allow update: if staff()
+      allow update: if restaurantStaff()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           "status", "updated_at", "converted_order_id", "converted_order_no", "converted_total"
         ])
         && request.resource.data.status in [
           "pending", "confirmed", "in_prep", "ready", "completed", "cancelled"
         ]
-        && request.resource.data.updated_at is string;
+        && request.resource.data.updated_at is string
+        || (roleIs("kitchen")
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updated_at"])
+          && request.resource.data.status in ["in_prep", "ready", "completed"]
+          && request.resource.data.updated_at is string);
       allow delete: if admin();
     }
 
     match /counters/{counterId} {
-      allow read, write: if staff() && counterId == "orders";
+      allow read, write: if restaurantStaff() && counterId == "orders";
     }
 
     match /petty_cash_accounts/{accountId} {
-      allow read: if staff() && accountId == "current";
-      allow create, update: if staff()
+      allow read: if hotelStaff() && accountId == "current";
+      allow create, update: if hotelStaff()
         && accountId == "current"
         && request.resource.data.balance is number
         && request.resource.data.balance >= 0
@@ -165,8 +201,8 @@ service cloud.firestore {
     }
 
     match /petty_cash_entries/{entryId} {
-      allow read: if staff();
-      allow create: if staff()
+      allow read: if hotelStaff();
+      allow create: if hotelStaff()
         && request.resource.data.kind in ["top_up", "expense"]
         && request.resource.data.amount is number
         && request.resource.data.amount > 0
@@ -215,8 +251,8 @@ service cloud.firestore {
         && request.resource.data.created_by_uid == request.auth.uid
         && request.resource.data.status == "new"
         && request.resource.data.created_at is string;
-      allow read: if staff();
-      allow update: if staff()
+      allow read: if hotelStaff();
+      allow update: if hotelStaff()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status"])
         && request.resource.data.status in ["new", "read"];
       allow delete: if admin();

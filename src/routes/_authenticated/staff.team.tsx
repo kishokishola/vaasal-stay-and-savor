@@ -6,6 +6,7 @@ import { deleteUser, type User } from "firebase/auth";
 import { Trash2, UserPlus } from "lucide-react";
 import { assignStaff, listStaff, removeStaff } from "@/lib/firebase-data";
 import { createProvisionedStaffAccount } from "@/integrations/firebase/client";
+import { parseStaffRole, staffRoleLabel, STAFF_ROLES, type StaffRole } from "@/lib/staff-roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -24,10 +25,10 @@ export const Route = createFileRoute("/_authenticated/staff/team")({
 function Team() {
   const qc = useQueryClient();
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"cashier" | "admin">("cashier");
+  const [role, setRole] = useState<StaffRole>("cashier");
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [newRole, setNewRole] = useState<"cashier" | "admin">("cashier");
+  const [newRole, setNewRole] = useState<StaffRole>("cashier");
   const [creating, setCreating] = useState(false);
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["staff"],
@@ -123,15 +124,21 @@ function Team() {
         />
         <Select
           value={newRole}
-          onValueChange={(v) => setNewRole(v as "cashier" | "admin")}
+          onValueChange={(value) => {
+            const selectedRole = parseStaffRole(value);
+            if (selectedRole) setNewRole(selectedRole);
+          }}
           disabled={creating}
         >
           <SelectTrigger className="w-36">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="cashier">Staff</SelectItem>
-            <SelectItem value="admin">Admin</SelectItem>
+            {STAFF_ROLES.map((staffRole) => (
+              <SelectItem key={staffRole} value={staffRole}>
+                {staffRoleLabel(staffRole)}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Button type="submit" disabled={creating}>
@@ -154,13 +161,22 @@ function Team() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-          <Select value={role} onValueChange={(v) => setRole(v as "cashier" | "admin")}>
+          <Select
+            value={role}
+            onValueChange={(value) => {
+              const selectedRole = parseStaffRole(value);
+              if (selectedRole) setRole(selectedRole);
+            }}
+          >
             <SelectTrigger className="w-36">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="cashier">Staff</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
+              {STAFF_ROLES.map((staffRole) => (
+                <SelectItem key={staffRole} value={staffRole}>
+                  {staffRoleLabel(staffRole)}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Button type="submit">Grant access</Button>
@@ -178,7 +194,7 @@ function Team() {
             <div>
               {s.email}{" "}
               <Badge variant="secondary" className="ml-2">
-                {s.role === "cashier" ? "staff" : s.role}
+                {staffRoleLabel(s.role)}
               </Badge>
             </div>
             <Button size="icon" variant="ghost" onClick={() => remove(s.email)}>

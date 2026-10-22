@@ -28,18 +28,28 @@ import {
   subscribeToOrders,
 } from "@/lib/firebase-data";
 import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
+import { staffRoleLabel, type StaffRole } from "@/lib/staff-roles";
 
-export function StaffShell({ isAdmin, children }: { isAdmin: boolean; children: ReactNode }) {
+export function StaffShell({ role, children }: { role: StaffRole; children: ReactNode }) {
   const qc = useQueryClient();
   const nav = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
+  const isAdmin = role === "admin";
+  const isHotelCashier = role === "cashier";
+  const canSeeBookings = isAdmin || isHotelCashier;
+  const canSeeOrderHistory = role !== "kitchen";
   const { data: bookings = [] } = useQuery({
     queryKey: ["bookings"],
     queryFn: () => getBookings(),
+    enabled: canSeeBookings,
   });
-  const { data: orders = [] } = useQuery({ queryKey: ["orders"], queryFn: getOrders });
-  useFirestoreRealtime(["bookings"], subscribeToBookings);
-  useFirestoreRealtime(["orders"], subscribeToOrders);
+  const { data: orders = [] } = useQuery({
+    queryKey: ["orders"],
+    queryFn: getOrders,
+    enabled: canSeeOrderHistory,
+  });
+  useFirestoreRealtime(["bookings"], subscribeToBookings, canSeeBookings);
+  useFirestoreRealtime(["orders"], subscribeToOrders, canSeeOrderHistory);
   const pendingBookings = bookings.filter((booking) => booking.status === "pending").length;
   const unpaidOrders = orders.filter(
     (order) =>
@@ -76,22 +86,36 @@ export function StaffShell({ isAdmin, children }: { isAdmin: boolean; children: 
         { to: "/staff/kitchen", label: "Kitchen Queue", icon: ChefHat },
         { to: "/staff/team", label: "Staff", icon: Users },
       ]
-    : [
-        { to: "/staff", label: "Dashboard", icon: LayoutDashboard, exact: true },
-        { to: "/staff/create-booking", label: "Create Booking", icon: Plus },
-        {
-          to: "/staff/bookings",
-          label: "Website Bookings",
-          icon: CalendarCheck,
-          badge: pendingBookings,
-        },
-        { to: "/staff/calendar", label: "Room Calendar", icon: CalendarCheck },
-        { to: "/staff/payments", label: "Payments", icon: CreditCard },
-        { to: "/staff/pos", label: "Restaurant POS", icon: ShoppingCart },
-        { to: "/staff/orders", label: "Order History", icon: Receipt, badge: unpaidOrders },
-        { to: "/staff/kitchen", label: "Kitchen Queue", icon: ChefHat },
-        { to: "/staff/petty-cash", label: "Petty Cash", icon: Wallet },
-      ];
+    : isHotelCashier
+      ? [
+          { to: "/staff", label: "Dashboard", icon: LayoutDashboard, exact: true },
+          { to: "/staff/create-booking", label: "Create Booking", icon: Plus },
+          {
+            to: "/staff/bookings",
+            label: "Website Bookings",
+            icon: CalendarCheck,
+            badge: pendingBookings,
+          },
+          { to: "/staff/calendar", label: "Room Calendar", icon: CalendarCheck },
+          { to: "/staff/payments", label: "Payments", icon: CreditCard },
+          { to: "/staff/pos", label: "Restaurant POS", icon: ShoppingCart },
+          { to: "/staff/orders", label: "Order History", icon: Receipt, badge: unpaidOrders },
+          { to: "/staff/kitchen", label: "Kitchen Queue", icon: ChefHat },
+          { to: "/staff/petty-cash", label: "Petty Cash", icon: Wallet },
+        ]
+      : role === "cashier_restaurant"
+        ? [
+            { to: "/staff/pos", label: "Restaurant POS", icon: ShoppingCart },
+            { to: "/staff/orders", label: "Order History", icon: Receipt, badge: unpaidOrders },
+          ]
+        : [{ to: "/staff/kitchen", label: "Kitchen Queue", icon: ChefHat }];
+  const portalSubtitle = isAdmin
+    ? "Admin portal"
+    : role === "kitchen"
+      ? "Kitchen portal"
+      : role === "cashier_restaurant"
+        ? "Restaurant portal"
+        : "Staff portal";
   async function logout() {
     await qc.cancelQueries();
     qc.clear();
@@ -110,7 +134,7 @@ export function StaffShell({ isAdmin, children }: { isAdmin: boolean; children: 
         >
           {(!collapsed || !isAdmin) && (
             <Link to="/" className={isAdmin && !collapsed ? "px-2" : ""}>
-              <BrandLogo size="staff" subtitle={isAdmin ? "Admin portal" : "Staff portal"} />
+              <BrandLogo size="staff" subtitle={portalSubtitle} />
             </Link>
           )}
           {isAdmin && (
@@ -174,7 +198,7 @@ export function StaffShell({ isAdmin, children }: { isAdmin: boolean; children: 
           to="/"
           className="flex items-center border-b border-sidebar-border bg-sidebar px-4 py-3 text-sidebar-foreground md:hidden"
         >
-          <BrandLogo size="staff" subtitle={isAdmin ? "Admin portal" : "Staff portal"} />
+          <BrandLogo size="staff" subtitle={portalSubtitle} />
         </Link>
         <div className="flex gap-2 overflow-x-auto bg-sidebar p-3 text-sidebar-foreground md:hidden">
           {links.map((l) => (
