@@ -7,36 +7,33 @@ import {
 } from "@/lib/staff-roles";
 
 describe("staff roles", () => {
-  it("maps the single sign-in role to its correct dashboard", () => {
+  it("maps the two sign-in roles to their correct dashboards", () => {
     expect(staffHomeRoute("admin")).toBe("/staff");
     expect(staffHomeRoute("cashier")).toBe("/staff/cashier");
-    expect(staffHomeRoute("cashier_restaurant")).toBe("/staff/restaurant");
-    expect(staffHomeRoute("kitchen")).toBe("/staff/kitchen");
   });
 
   it("accepts only supported staff roles", () => {
-    expect(parseStaffRole("kitchen")).toBe("kitchen");
-    expect(parseStaffRole("cashier_restaurant")).toBe("cashier_restaurant");
+    expect(parseStaffRole("admin")).toBe("admin");
+    expect(parseStaffRole("cashier")).toBe("cashier");
+    expect(parseStaffRole("kitchen")).toBeNull();
+    expect(parseStaffRole("cashier_restaurant")).toBe("cashier");
     expect(parseStaffRole("customer")).toBeNull();
   });
 
-  it("limits specialist staff to their operational pages", () => {
+  it("limits cashiers to hotel and restaurant operating pages", () => {
     expect(canAccessStaffRoute("cashier", "/staff/bookings")).toBe(true);
     expect(canAccessStaffRoute("cashier", "/staff/cashier")).toBe(true);
+    expect(canAccessStaffRoute("cashier", "/staff/pos")).toBe(true);
+    expect(canAccessStaffRoute("cashier", "/staff/orders")).toBe(true);
     expect(canAccessStaffRoute("cashier", "/staff/kitchen")).toBe(false);
     expect(canAccessStaffRoute("cashier", "/staff/team")).toBe(false);
-    expect(canAccessStaffRoute("cashier_restaurant", "/staff/pos")).toBe(true);
-    expect(canAccessStaffRoute("cashier_restaurant", "/staff/restaurant")).toBe(true);
-    expect(canAccessStaffRoute("cashier_restaurant", "/staff/team")).toBe(false);
-    expect(canAccessStaffRoute("cashier_restaurant", "/staff/kitchen")).toBe(false);
-    expect(canAccessStaffRoute("kitchen", "/staff/kitchen")).toBe(true);
-    expect(canAccessStaffRoute("kitchen", "/staff/pos")).toBe(false);
-    expect(canAccessStaffRoute("kitchen", "/staff/payments")).toBe(false);
+    expect(canAccessStaffRoute("cashier", "/staff/funds")).toBe(false);
+    expect(canAccessStaffRoute("cashier", "/staff/settings")).toBe(false);
     expect(canAccessStaffRoute("admin", "/staff/settings")).toBe(true);
   });
 
   it("provides human-readable role names", () => {
-    expect(staffRoleLabel("cashier_restaurant")).toBe("Restaurant cashier");
-    expect(staffRoleLabel("kitchen")).toBe("Kitchen");
+    expect(staffRoleLabel("admin")).toBe("Admin");
+    expect(staffRoleLabel("cashier")).toBe("Cashier");
   });
 });

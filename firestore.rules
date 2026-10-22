@@ -8,7 +8,8 @@ service cloud.firestore {
     function staff() {
       return signedIn()
         && request.auth.token.email is string
-        && exists(/databases/$(database)/documents/staff_access/$(request.auth.token.email.lower()));
+        && exists(/databases/$(database)/documents/staff_access/$(request.auth.token.email.lower()))
+        && get(/databases/$(database)/documents/staff_access/$(request.auth.token.email.lower())).data.role in ["admin", "cashier", "cashier_restaurant"];
     }
 
     function staffRole() {
@@ -16,7 +17,9 @@ service cloud.firestore {
     }
 
     function roleIs(role) {
-      return staff() && staffRole() == role;
+      return staff()
+        && (staffRole() == role
+          || (role == "cashier" && staffRole() == "cashier_restaurant"));
     }
 
     function hotelStaff() {
@@ -24,11 +27,7 @@ service cloud.firestore {
     }
 
     function restaurantStaff() {
-      return hotelStaff() || roleIs("cashier_restaurant");
-    }
-
-    function kitchenStaff() {
-      return hotelStaff() || roleIs("kitchen");
+      return hotelStaff();
     }
 
     function canCreateCustomerOrder() {
@@ -98,7 +97,7 @@ service cloud.firestore {
     }
 
     match /orders/{orderId} {
-      allow read: if restaurantStaff() || kitchenStaff();
+      allow read: if restaurantStaff();
       allow create: if restaurantStaff();
       allow update: if admin()
         || (restaurantStaff()
@@ -115,19 +114,7 @@ service cloud.firestore {
           && (!("paid_amount" in request.resource.data)
             || (request.resource.data.paid_amount is number && request.resource.data.paid_amount >= 0))
           && (!("payment_status" in request.resource.data)
-            || request.resource.data.payment_status in ["paid", "unpaid", "partial", "refunded"]))
-        || (roleIs("kitchen")
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            "status", "updated_at", "order_status_updated_at", "status_note", "status_history",
-            "is_closed"
-          ])
-          && request.resource.data.status in ["in_prep", "ready", "delivered"]
-          && request.resource.data.updated_at is string
-          && request.resource.data.order_status_updated_at is string
-          && request.resource.data.status_note is string
-          && request.resource.data.status_history is list
-          && (!("is_closed" in request.resource.data)
-            || request.resource.data.is_closed is bool));
+            || request.resource.data.payment_status in ["paid", "unpaid", "partial", "refunded"]));
       allow delete: if admin();
     }
 
@@ -168,7 +155,7 @@ service cloud.firestore {
             && request.resource.data.notes.size() <= 500))
         && request.resource.data.status == "pending"
         && request.resource.data.created_at is string;
-      allow read: if restaurantStaff() || kitchenStaff()
+      allow read: if restaurantStaff()
         || (signedIn() && resource.data.created_by_uid == request.auth.uid);
       allow update: if restaurantStaff()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -177,11 +164,7 @@ service cloud.firestore {
         && request.resource.data.status in [
           "pending", "confirmed", "in_prep", "ready", "completed", "cancelled"
         ]
-        && request.resource.data.updated_at is string
-        || (roleIs("kitchen")
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updated_at"])
-          && request.resource.data.status in ["in_prep", "ready", "completed"]
-          && request.resource.data.updated_at is string);
+        && request.resource.data.updated_at is string;
       allow delete: if admin();
     }
 

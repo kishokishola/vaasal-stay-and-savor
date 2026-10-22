@@ -17,13 +17,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { publicAsset } from "@/lib/hotel";
 import { BrandLogo } from "@/components/site/BrandLogo";
-import { ChefHat, ShieldCheck, UtensilsCrossed, UserRound, type LucideIcon } from "lucide-react";
+import { ShieldCheck, UserRound, type LucideIcon } from "lucide-react";
 
 const staffRoleIcons: Record<StaffRole, LucideIcon> = {
   admin: ShieldCheck,
   cashier: UserRound,
-  cashier_restaurant: UtensilsCrossed,
-  kitchen: ChefHat,
 };
 
 export const Route = createFileRoute("/auth")({
@@ -126,7 +124,7 @@ function AuthPage() {
       if (!role) {
         await signOut(auth);
         setAccessMessage(
-          "This account is not assigned a staff role yet. Ask the administrator to add you as admin, hotel cashier, restaurant cashier, or kitchen staff.",
+          "This account is not assigned a staff role yet. Ask the administrator to add you as admin or cashier.",
         );
         return;
       }
@@ -267,7 +265,7 @@ function AuthPage() {
               </h1>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 {mode === "signin"
-                  ? "Choose your assigned staff portal, then sign in with your email and password."
+                  ? "Choose Admin or Cashier, then sign in with your email and password."
                   : "Create a login with your email as username and a password you choose."}
               </p>
             </div>

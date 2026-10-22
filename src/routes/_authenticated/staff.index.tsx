@@ -1,17 +1,33 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
+  BarChart3,
+  BedDouble,
+  CalendarCheck,
+  ChefHat,
+  CreditCard,
+  Receipt,
+  Settings,
+  ShoppingCart,
+  Users,
+  UtensilsCrossed,
+  Wallet,
+} from "lucide-react";
+import {
   getBookings,
-  getOrders,
+  getMenuItems,
+  getPettyCash,
   getReservedRoomIds,
   getRooms,
   subscribeToBookings,
   subscribeToDateLocks,
-  subscribeToOrders,
+  subscribeToMenuItems,
+  subscribeToPettyCash,
   subscribeToRooms,
+  type Booking,
 } from "@/lib/firebase-data";
-import { collectedOrderAmount, lkr } from "@/lib/hotel";
-import { hotelDayBounds, hotelToday } from "@/lib/dates";
+import { lkr } from "@/lib/hotel";
+import { hotelToday } from "@/lib/dates";
 import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
 
 export const Route = createFileRoute("/_authenticated/staff/")({
@@ -20,83 +36,112 @@ export const Route = createFileRoute("/_authenticated/staff/")({
 
 function Overview() {
   const today = hotelToday();
-  const bounds = hotelDayBounds(today);
   const overviewKey = ["overview", today];
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: overviewKey,
     queryFn: async () => {
-      const [bookings, orders, rooms, reservedRoomIds] = await Promise.all([
+      const [bookings, rooms, reservedRoomIds, menuItems, pettyCash] = await Promise.all([
         getBookings(),
-        getOrders(),
         getRooms(true),
         getReservedRoomIds(today),
+        getMenuItems(),
+        getPettyCash(),
       ]);
-      const todaysOrders = orders.filter(
-        (order) => order.created_at >= bounds.start && order.created_at < bounds.end,
-      );
-      const completedSales = todaysOrders.filter((order) => order.status !== "cancelled");
       return {
         bookings,
-        pending: bookings.filter((booking) => booking.status === "pending").length,
-        arrivals: bookings.filter(
-          (booking) => booking.check_in === today && booking.status === "confirmed",
-        ).length,
-        inHouse: bookings
-          .filter((booking) => booking.status === "checked_in")
-          .reduce((guests, booking) => guests + Number(booking.guests), 0),
+        totalBookings: bookings.length,
         availableRooms: rooms.filter((room) => !reservedRoomIds.includes(room.id)).length,
-        sales: completedSales.reduce((sum, order) => sum + collectedOrderAmount(order), 0),
-        orderCount: completedSales.length,
+        foodItems: menuItems.filter((item) => !item.deleted).length,
+        funds: pettyCash.balance,
       };
     },
   });
   useFirestoreRealtime(overviewKey, subscribeToBookings);
-  useFirestoreRealtime(overviewKey, subscribeToOrders);
   useFirestoreRealtime(overviewKey, subscribeToRooms);
   useFirestoreRealtime(overviewKey, (onChange, onError) =>
     subscribeToDateLocks(today, onChange, onError),
   );
-  const cards = [
-    { l: "Pending requests", v: data?.pending ?? "–", to: "/staff/bookings" },
-    { l: "Arrivals today", v: data?.arrivals ?? "–", to: "/staff/bookings" },
-    { l: "Guests in house", v: data?.inHouse ?? "–", to: "/staff/bookings" },
-    { l: "Rooms available today", v: data?.availableRooms ?? "–", to: "/staff/rooms" },
-    {
-      l: `Restaurant today (${data?.orderCount ?? 0} bills)`,
-      v: data ? lkr(data.sales) : "–",
-      to: "/staff/orders",
-    },
+  useFirestoreRealtime(overviewKey, subscribeToMenuItems);
+  useFirestoreRealtime(overviewKey, subscribeToPettyCash);
+
+  const metrics = [
+    { label: "Total Bookings", value: data?.totalBookings ?? "–", icon: CalendarCheck },
+    { label: "Available Rooms", value: data?.availableRooms ?? "–", icon: BedDouble },
+    { label: "Food Items", value: data?.foodItems ?? "–", icon: UtensilsCrossed },
+    { label: "Petty Cash Balance", value: data ? lkr(data.funds) : "–", icon: Wallet },
   ] as const;
   const actions = [
     {
-      label: "Manage bookings",
-      description: "Confirm stays and update guest arrivals.",
-      to: "/staff/bookings",
-    },
-    {
-      label: "Manage rooms",
-      description: "Edit prices, room details, photos, and availability.",
+      label: "Manage Rooms",
+      description: "Edit room details, photos, prices and availability.",
       to: "/staff/rooms",
+      icon: BedDouble,
     },
     {
-      label: "Open restaurant POS",
-      description: "Create dine-in, takeaway, and room-service bills.",
-      to: "/staff/pos",
-    },
-    {
-      label: "View sales",
-      description: "Review orders, payment methods, and daily totals.",
-      to: "/staff/orders",
-    },
-    {
-      label: "Manage menu",
-      description: "Update food items, prices, and availability.",
+      label: "Food Menu",
+      description: "Manage restaurant food items, prices and availability.",
       to: "/staff/menu",
+      icon: UtensilsCrossed,
     },
     {
-      label: "Create staff account",
-      description: "Create Firebase staff logins and assign protected roles.",
+      label: "Room Calendar",
+      description: "View room reservations and availability by date.",
+      to: "/staff/calendar",
+      icon: CalendarCheck,
+    },
+    {
+      label: "Petty Cash",
+      description: "Review the cash balance and expense ledger.",
+      to: "/staff/petty-cash",
+      icon: Wallet,
+    },
+    {
+      label: "Track Payments",
+      description: "Review collections, expenses and cash deposits.",
+      to: "/staff/funds",
+      icon: BarChart3,
+    },
+    {
+      label: "Booking History",
+      description: "Review guest reservations and booking status.",
+      to: "/staff/bookings",
+      icon: Receipt,
+    },
+    {
+      label: "Pending Payments",
+      description: "Review outstanding room and restaurant balances.",
+      to: "/staff/payments",
+      icon: CreditCard,
+    },
+    {
+      label: "Order History",
+      description: "Review restaurant bills, queues and sales reports.",
+      to: "/staff/orders",
+      icon: ShoppingCart,
+    },
+    {
+      label: "Restaurant POS",
+      description: "Create dine-in, takeaway and room-service bills.",
+      to: "/staff/pos",
+      icon: ShoppingCart,
+    },
+    {
+      label: "Kitchen Queue",
+      description: "Update order preparation and service progress.",
+      to: "/staff/kitchen",
+      icon: ChefHat,
+    },
+    {
+      label: "Settings",
+      description: "Manage hotel details and website settings.",
+      to: "/staff/settings",
+      icon: Settings,
+    },
+    {
+      label: "Staff Accounts",
+      description: "Create and manage Admin and Cashier access.",
       to: "/staff/team",
+      icon: Users,
     },
   ] as const;
   const upcoming = (data?.bookings ?? [])
@@ -108,11 +153,15 @@ function Overview() {
     )
     .sort((a, b) => a.check_in.localeCompare(b.check_in))
     .slice(0, 5);
+
   return (
     <div>
-      <div className="eyebrow">Overview</div>
-      <h1 className="mt-2 text-4xl">Good day</h1>
-      {isLoading && <p className="mt-6 text-sm text-muted-foreground">Loading hotel operations…</p>}
+      <div className="eyebrow">Admin dashboard · {today}</div>
+      <h1 className="mt-2 text-4xl">Hotel operations</h1>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Live overview of bookings, room availability, food menu and petty cash.
+      </p>
+      {isLoading && <p className="mt-6 text-sm text-muted-foreground">Loading live hotel data…</p>}
       {isError && (
         <div
           role="alert"
@@ -124,19 +173,18 @@ function Overview() {
           </button>
         </div>
       )}
-      <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-5">
-        {cards.map((c) => (
-          <Link
-            key={c.l}
-            to={c.to}
-            className="bg-card p-6 shadow-luxe hover:-translate-y-0.5 transition"
-          >
-            <div className="text-xs uppercase tracking-widest text-muted-foreground">{c.l}</div>
-            <div className="mt-3 font-display text-4xl text-primary">{c.v}</div>
-          </Link>
+      <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        {metrics.map(({ label, value, icon: Icon }) => (
+          <article key={label} className="bg-card p-6 shadow-luxe">
+            <Icon className="size-5 text-primary" />
+            <div className="mt-4 text-xs uppercase tracking-widest text-muted-foreground">
+              {label}
+            </div>
+            <div className="mt-2 font-display text-3xl text-primary">{value}</div>
+          </article>
         ))}
       </div>
-      <div className="mt-10 grid gap-8 xl:grid-cols-[1fr_1.2fr]">
+      <div className="mt-10 grid gap-8 xl:grid-cols-[1fr_1.4fr]">
         <section className="bg-card p-6 shadow-luxe">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -149,47 +197,49 @@ function Overview() {
           </div>
           {!isLoading && !isError && !upcoming.length && (
             <p className="mt-6 text-sm text-muted-foreground">
-              No bookings have been recorded yet.
+              No upcoming bookings have been recorded.
             </p>
           )}
           <div className="mt-4 divide-y divide-border">
             {upcoming.map((booking) => (
-              <div
-                key={booking.id}
-                className="flex flex-wrap items-center justify-between gap-2 py-3"
-              >
-                <div>
-                  <div className="font-medium">{booking.guest_name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {booking.room_code} · {booking.check_in} → {booking.check_out}
-                  </div>
-                </div>
-                <span className="text-xs capitalize text-muted-foreground">
-                  {booking.status.replace("_", " ")}
-                </span>
-              </div>
+              <UpcomingBooking key={booking.id} booking={booking} />
             ))}
           </div>
         </section>
         <section>
-          <div className="eyebrow">Quick access</div>
+          <div className="eyebrow">Admin access</div>
           <h2 className="mt-2 font-display text-2xl">Manage your hotel</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {actions.map((action) => (
+            {actions.map(({ label, description, to, icon: Icon }) => (
               <Link
-                key={action.to}
-                to={action.to}
+                key={to}
+                to={to}
                 className="bg-card p-5 shadow-luxe transition hover:-translate-y-0.5 hover:ring-1 hover:ring-accent"
               >
-                <div className="font-medium text-primary">{action.label}</div>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                  {action.description}
-                </p>
+                <Icon className="size-5 text-primary" />
+                <div className="mt-3 font-medium text-primary">{label}</div>
+                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{description}</p>
               </Link>
             ))}
           </div>
         </section>
       </div>
+    </div>
+  );
+}
+
+function UpcomingBooking({ booking }: { booking: Booking }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 py-3">
+      <div>
+        <div className="font-medium">{booking.guest_name}</div>
+        <div className="text-xs text-muted-foreground">
+          {booking.room_code} · {booking.check_in} → {booking.check_out}
+        </div>
+      </div>
+      <span className="text-xs capitalize text-muted-foreground">
+        {booking.status.replaceAll("_", " ")}
+      </span>
     </div>
   );
 }

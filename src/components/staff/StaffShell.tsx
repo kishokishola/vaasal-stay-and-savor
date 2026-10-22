@@ -39,7 +39,7 @@ export function StaffShell({ role, children }: { role: StaffRole; children: Reac
   const isAdmin = role === "admin";
   const isHotelCashier = role === "cashier";
   const canSeeBookings = isAdmin || isHotelCashier;
-  const canSeeOrderHistory = role !== "kitchen";
+  const canSeeOrderHistory = true;
   const { data: bookings = [] } = useQuery({
     queryKey: ["bookings"],
     queryFn: () => getBookings(),
@@ -102,34 +102,23 @@ export function StaffShell({ role, children }: { role: StaffRole; children: Reac
           { to: "/staff/payments", label: "Payments", icon: CreditCard },
           { to: "/staff/pos", label: "Food Orders", icon: ShoppingCart },
           { to: "/staff/orders", label: "Order History", icon: Receipt, badge: unpaidOrders },
+          {
+            to: "/staff/orders",
+            hash: () => "order-queue",
+            label: "Order Queue",
+            icon: ClipboardList,
+            badge: unpaidOrders,
+          },
+          {
+            to: "/staff/orders",
+            hash: () => "restaurant-reports",
+            label: "Sales Reports",
+            icon: BarChart3,
+          },
           { to: "/staff/petty-cash", label: "Petty Cash", icon: Wallet },
         ]
-      : role === "cashier_restaurant"
-        ? [
-            { to: "/staff/restaurant", label: "Dashboard", icon: LayoutDashboard, exact: true },
-            { to: "/staff/pos", label: "Create Order", icon: ShoppingCart },
-            {
-              to: "/staff/orders",
-              hash: () => "order-queue",
-              label: "Order Queue",
-              icon: ClipboardList,
-              badge: unpaidOrders,
-            },
-            {
-              to: "/staff/orders",
-              hash: () => "restaurant-reports",
-              label: "Reports",
-              icon: BarChart3,
-            },
-          ]
-        : [{ to: "/staff/kitchen", label: "Kitchen Queue", icon: ChefHat }];
-  const portalSubtitle = isAdmin
-    ? "Admin portal"
-    : role === "kitchen"
-      ? "Kitchen portal"
-      : role === "cashier_restaurant"
-        ? "Restaurant portal"
-        : "Staff portal";
+      : [];
+  const portalSubtitle = isAdmin ? "Admin portal" : "Cashier portal";
   async function logout() {
     await qc.cancelQueries();
     qc.clear();
