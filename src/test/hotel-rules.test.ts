@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   collectedOrderAmount,
+  menuItemRate,
   nightsBetween,
   orderTotals,
   paymentStatusFor,
   publicAsset,
+  roomRate,
 } from "@/lib/hotel";
 import { hotelDayBounds, hotelToday } from "@/lib/dates";
 
@@ -36,6 +38,56 @@ describe("hotel rules", () => {
       tax: 112.5,
       total: 2587.5,
     });
+  });
+  it("selects local and foreign food prices without mixing currencies", () => {
+    expect(menuItemRate({ price: 1500, price_local: 1600, price_foreign: 12 }, "LKR")).toBe(1600);
+    expect(menuItemRate({ price: 1500, price_local: 1600, price_foreign: 12 }, "USD")).toBe(12);
+    expect(
+      menuItemRate(
+        {
+          price: 1500,
+          price_local: 1600,
+          price_foreign: 12,
+          price_room_local: 1800,
+          price_room_foreign: 14,
+        },
+        "LKR",
+        "room",
+      ),
+    ).toBe(1800);
+    expect(
+      menuItemRate(
+        {
+          price: 1500,
+          price_local: 1600,
+          price_foreign: 12,
+          price_room_local: 1800,
+          price_room_foreign: 14,
+        },
+        "USD",
+        "room",
+      ),
+    ).toBe(14);
+    expect(menuItemRate({ price: 1500, price_local: 1600, price_foreign: 12 }, "LKR", "room")).toBe(
+      1600,
+    );
+    expect(menuItemRate({ price: 1500 }, "LKR")).toBe(1500);
+    expect(menuItemRate({ price: 1500 }, "USD")).toBe(0);
+  });
+  it("selects the configured room rate for the requested currency and duration", () => {
+    const room = {
+      price: 10000,
+      price_local: 11000,
+      price_foreign: 75,
+      day_rate_local: 6000,
+      day_rate_foreign: 40,
+    };
+    expect(roomRate(room, "LKR", "night")).toBe(11000);
+    expect(roomRate(room, "USD", "night")).toBe(75);
+    expect(roomRate(room, "LKR", "day")).toBe(6000);
+    expect(roomRate(room, "USD", "day")).toBe(40);
+    expect(roomRate({ price: 10000 }, "LKR", "night")).toBe(10000);
+    expect(roomRate({ price: 10000 }, "USD", "night")).toBe(0);
   });
   it("distinguishes unpaid, partial and fully paid POS tickets", () => {
     expect(paymentStatusFor(1000, 0)).toBe("unpaid");

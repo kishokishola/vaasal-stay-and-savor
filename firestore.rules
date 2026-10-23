@@ -122,12 +122,12 @@ service cloud.firestore {
       allow create: if canCreateCustomerOrder()
         && request.resource.data.keys().hasOnly([
           "customer_name", "customer_phone", "order_type", "order_reference",
-          "items_summary", "items", "subtotal_estimate", "notes", "status", "created_at",
+          "items_summary", "items", "subtotal_estimate", "price_currency", "notes", "status", "created_at",
           "created_by_uid"
         ])
         && request.resource.data.keys().hasAll([
           "customer_name", "customer_phone", "order_type", "order_reference",
-          "items_summary", "items", "subtotal_estimate", "notes", "status", "created_at",
+          "items_summary", "items", "subtotal_estimate", "price_currency", "notes", "status", "created_at",
           "created_by_uid"
         ])
         && request.resource.data.customer_name is string
@@ -146,6 +146,7 @@ service cloud.firestore {
         && request.resource.data.subtotal_estimate is number
         && request.resource.data.subtotal_estimate >= 0
         && request.resource.data.subtotal_estimate <= 10000000
+        && request.resource.data.price_currency in ["LKR", "USD"]
         && request.resource.data.items is list
         && request.resource.data.items.size() > 0
         && request.resource.data.items.size() <= 30

@@ -28,7 +28,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { lkr, nightsBetween, publicAsset, roomRate } from "@/lib/hotel";
+import { nightsBetween, publicAsset, rateAmount, roomRate } from "@/lib/hotel";
+import { usePriceCurrency } from "@/lib/price-currency-context";
 
 export const Route = createFileRoute("/rooms/$code")({
   head: ({ params }) => ({
@@ -52,6 +53,7 @@ export const Route = createFileRoute("/rooms/$code")({
 
 function RoomDetail() {
   const { code } = Route.useParams();
+  const { currency, setCurrency } = usePriceCurrency();
   const {
     data: room,
     isLoading,
@@ -86,7 +88,6 @@ function RoomDetail() {
   const [trackedBookingStatus, setTrackedBookingStatus] = useState<Booking["status"] | null>(null);
   const [busy, setBusy] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
-  const [currency, setCurrency] = useState<"LKR" | "USD">("LKR");
   const [period, setPeriod] = useState<"night" | "day">("night");
   const nights = nightsBetween(form.in, form.out);
   const photos = useMemo(
@@ -216,7 +217,10 @@ function RoomDetail() {
             <div className="eyebrow text-gold">Room {room.code}</div>
             <h1 className="mt-3 text-5xl md:text-6xl">{room.name}</h1>
             <p className="mt-3 text-lg text-gold">
-              {lkr(room.price)} <span className="text-sm opacity-80">/ night</span>
+              {roomRate(room, currency, "night") > 0
+                ? rateAmount(roomRate(room, currency, "night"), currency)
+                : "Rate not available"}{" "}
+              <span className="text-sm opacity-80">/ night</span>
             </p>
           </div>
         </div>
@@ -258,23 +262,9 @@ function RoomDetail() {
               ))}
             </div>
           )}
-          <div className="mt-6 flex flex-wrap gap-2 text-sm">
-            <span className="rounded border border-border px-3 py-2">
-              Local overnight: {lkr(room.price_local ?? room.price)}
-            </span>
-            {room.price_foreign ? (
-              <span className="rounded border border-border px-3 py-2">
-                Foreign overnight: USD {room.price_foreign.toLocaleString()}
-              </span>
-            ) : null}
-            <span className="rounded border border-border px-3 py-2">
-              Local day rate: {lkr(room.day_rate_local ?? room.price)}
-            </span>
-            {room.day_rate_foreign ? (
-              <span className="rounded border border-border px-3 py-2">
-                Foreign day rate: USD {room.day_rate_foreign.toLocaleString()}
-              </span>
-            ) : null}
+          <div className="mt-6 rounded border border-border bg-card px-4 py-3 text-sm">
+            Current {period === "night" ? "overnight" : "day"} rate:{" "}
+            <span className="font-medium text-primary">{rateAmount(rate, currency)}</span>
           </div>
           {(booked ?? []).length > 0 && (
             <div className="mt-10">
@@ -432,9 +422,7 @@ function RoomDetail() {
                     {nights > 1 ? "s" : ""}
                   </span>
                   <span className="font-medium text-primary">
-                    {currency === "LKR"
-                      ? lkr(bookingTotal)
-                      : `USD ${bookingTotal.toLocaleString()}`}
+                    {rateAmount(bookingTotal, currency)}
                   </span>
                 </div>
               )}

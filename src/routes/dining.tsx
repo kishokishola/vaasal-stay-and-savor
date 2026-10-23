@@ -6,11 +6,12 @@ import { toast } from "sonner";
 import { onAuthStateChanged } from "firebase/auth";
 import { getPublicMenuItems } from "@/lib/public-catalog";
 import { SiteLayout, PageHero } from "@/components/site/SiteLayout";
-import { lkr, publicAsset } from "@/lib/hotel";
+import { menuItemRate, publicAsset, rateAmount } from "@/lib/hotel";
 import type { CustomerOrderRequest, MenuItem } from "@/lib/firebase-data";
 import { createCustomerOrderRequest, subscribeToCustomerOrderRequest } from "@/lib/firebase-data";
 import { subscribeToMenuItems } from "@/lib/firebase-data";
 import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
+import { usePriceCurrency } from "@/lib/price-currency-context";
 import { auth } from "@/integrations/firebase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +45,7 @@ export const Route = createFileRoute("/dining")({
 type DiningLine = { item: MenuItem; qty: number };
 
 function Dining() {
+  const { currency } = usePriceCurrency();
   const { data, isLoading, isError } = useQuery({
     queryKey: ["menu-public"],
     queryFn: getPublicMenuItems,
@@ -67,9 +69,21 @@ function Dining() {
     (acc[m.category] ||= [] as never).push(m);
     return acc;
   }, {});
+  const currentCart = useMemo(
+    () =>
+      cart.flatMap((line) => {
+        const item = items.find((current) => current.id === line.item.id);
+        return item?.available && !item.deleted ? [{ item, qty: line.qty }] : [];
+      }),
+    [cart, items],
+  );
   const subtotal = useMemo(
-    () => cart.reduce((total, line) => total + Number(line.item.price) * line.qty, 0),
-    [cart],
+    () =>
+      currentCart.reduce(
+        (total, line) => total + menuItemRate(line.item, currency, orderType) * line.qty,
+        0,
+      ),
+    [currentCart, currency, orderType],
   );
   useEffect(
     () =>
@@ -127,8 +141,12 @@ function Dining() {
     );
   }
   async function sendOrder() {
-    if (!cart.length) {
+    if (!currentCart.length) {
       toast.error("Add at least one food item to your order.");
+      return;
+    }
+    if (currentCart.some(({ item }) => menuItemRate(item, currency, orderType) <= 0)) {
+      toast.error("A selected food item does not have a price in this currency.");
       return;
     }
     if (!customerName.trim() || !customerPhone.trim()) {
@@ -146,16 +164,20 @@ function Dining() {
         customer_phone: customerPhone,
         order_type: orderType,
         order_reference: orderType === "takeaway" ? null : orderReference.trim() || null,
-        items_summary: cart
-          .map(({ item, qty }) => `${qty} x ${item.name} — ${lkr(Number(item.price) * qty)}`)
+        items_summary: currentCart
+          .map(
+            ({ item, qty }) =>
+              `${qty} x ${item.name} — ${rateAmount(menuItemRate(item, currency, orderType) * qty, currency)}`,
+          )
           .join("\n"),
-        items: cart.map(({ item, qty }) => ({
+        items: currentCart.map(({ item, qty }) => ({
           menu_item_id: item.id,
           name: item.name,
-          price: Number(item.price),
+          price: menuItemRate(item, currency, orderType),
           qty,
         })),
         subtotal_estimate: subtotal,
+        price_currency: currency,
         notes: notes.trim() || null,
       });
       const uid = auth.currentUser?.uid;
@@ -222,7 +244,11 @@ function Dining() {
                       <div className="flex items-baseline gap-3">
                         <span className="font-display text-xl">{m.name}</span>
                         <span className="flex-1 border-b border-dotted border-border" />
-                        <span className="text-sm text-primary">{lkr(m.price)}</span>
+                        <span className="text-sm text-primary">
+                          {menuItemRate(m, currency, orderType) > 0
+                            ? rateAmount(menuItemRate(m, currency, orderType), currency)
+                            : "Price not set"}
+                        </span>
                       </div>
                       {m.description && (
                         <p className="mt-1 text-sm text-muted-foreground">{m.description}</p>
@@ -232,6 +258,7 @@ function Dining() {
                         size="sm"
                         variant="outline"
                         className="mt-2"
+                        disabled={menuItemRate(m, currency, orderType) <= 0}
                         onClick={() => add(m)}
                       >
                         <Plus /> Add to order
@@ -254,12 +281,13 @@ function Dining() {
                     Choose food items above. Your subtotal will update automatically.
                   </p>
                 )}
-                {cart.map(({ item, qty }) => (
+                {currentCart.map(({ item, qty }) => (
                   <div key={item.id} className="flex items-center gap-2 text-sm">
                     <div className="min-w-0 flex-1">
                       <div className="font-medium">{item.name}</div>
                       <div className="text-muted-foreground">
-                        {lkr(item.price)} each · {lkr(Number(item.price) * qty)}
+                        {rateAmount(menuItemRate(item, currency, orderType), currency)} each ·{" "}
+                        {rateAmount(menuItemRate(item, currency, orderType) * qty, currency)}
                       </div>
                     </div>
                     <Button
@@ -294,7 +322,7 @@ function Dining() {
                 ))}
                 <div className="flex justify-between border-t border-border pt-4 font-display text-xl">
                   <span>Subtotal</span>
-                  <span className="text-primary">{lkr(subtotal)}</span>
+                  <span className="text-primary">{rateAmount(subtotal, currency)}</span>
                 </div>
               </div>
               <div className="grid content-start gap-4 sm:grid-cols-2">
@@ -371,7 +399,7 @@ function Dining() {
                   variant="luxe"
                   size="lg"
                   className="sm:col-span-2"
-                  disabled={!cart.length || submitting}
+                  disabled={!currentCart.length || submitting}
                   onClick={sendOrder}
                 >
                   {submitting ? "Sending order…" : "Place order"}
@@ -405,7 +433,7 @@ function Dining() {
                       <p className="mt-1 text-xs text-muted-foreground">
                         POS ticket #{request.converted_order_no}
                         {request.converted_total !== undefined &&
-                          ` · Confirmed total ${lkr(request.converted_total)}`}
+                          ` · Confirmed total ${rateAmount(request.converted_total, request.price_currency ?? "LKR")}`}
                       </p>
                     )}
                     {request && (

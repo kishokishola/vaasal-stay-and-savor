@@ -35,7 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { collectedOrderAmount, HOTEL, lkr } from "@/lib/hotel";
+import { collectedOrderAmount, HOTEL, rateAmount } from "@/lib/hotel";
 
 export const Route = createFileRoute("/_authenticated/staff/orders")({
   component: Orders,
@@ -64,6 +64,27 @@ function collectedFor(order: Order) {
   return collectedOrderAmount(order);
 }
 
+function orderCurrency(order: Order) {
+  return order.price_currency ?? "LKR";
+}
+
+function currencyTotals(orders: Order[], amount: (order: Order) => number) {
+  return {
+    LKR: orders.reduce(
+      (sum, order) => sum + (orderCurrency(order) === "LKR" ? amount(order) : 0),
+      0,
+    ),
+    USD: orders.reduce(
+      (sum, order) => sum + (orderCurrency(order) === "USD" ? amount(order) : 0),
+      0,
+    ),
+  };
+}
+
+function formatCurrencyTotals(values: { LKR: number; USD: number }) {
+  return `${rateAmount(values.LKR, "LKR")} · ${rateAmount(values.USD, "USD")}`;
+}
+
 function printOrder(order: Order) {
   const popup = window.open("", "_blank", "popup,width=420,height=720");
   if (!popup) {
@@ -79,10 +100,11 @@ function printOrder(order: Order) {
   };
   const escape = (value: string | number) =>
     String(value).replace(/[&<>"']/g, (character) => entities[character] ?? character);
+  const currency = orderCurrency(order);
   const items = order.order_items
     .map(
       (item) =>
-        `<div class="row"><span>${escape(item.qty)} × ${escape(item.name)}</span><span>${lkr(Number(item.qty) * Number(item.price))}</span></div>`,
+        `<div class="row"><span>${escape(item.qty)} × ${escape(item.name)}</span><span>${rateAmount(Number(item.qty) * Number(item.price), currency)}</span></div>`,
     )
     .join("");
   popup.document.write(`<!doctype html><html><head><title>Bill ${escape(order.order_no)}</title>
@@ -92,12 +114,12 @@ function printOrder(order: Order) {
     <div class="muted">${escape(order.order_type.replace("_", " "))}${order.table_no ? ` · Table ${escape(order.table_no)}` : ""}${order.room_code ? ` · Room ${escape(order.room_code)}` : ""}</div>
     <div class="muted">${escape(order.customer_name ?? "Walk-in")} · ${escape(order.customer_phone ?? "")}</div>
     <hr>${items}<hr>
-    <div class="row"><span>Subtotal</span><span>${lkr(order.subtotal)}</span></div>
-    <div class="row"><span>Discount</span><span>− ${lkr(order.discount)}</span></div>
-    <div class="row"><span>Service charge</span><span>${lkr(order.service_charge)}</span></div>
-    <div class="row"><span>Tax</span><span>${lkr(order.tax ?? 0)}</span></div>
-    <div class="row total"><span>Total</span><span>${lkr(order.total)}</span></div>
-    <div class="row"><span>Paid (${escape(order.payment_method)})</span><span>${lkr(collectedFor(order))}</span></div>
+    <div class="row"><span>Subtotal</span><span>${rateAmount(order.subtotal, currency)}</span></div>
+    <div class="row"><span>Discount</span><span>− ${rateAmount(order.discount, currency)}</span></div>
+    <div class="row"><span>Service charge</span><span>${rateAmount(order.service_charge, currency)}</span></div>
+    <div class="row"><span>Tax</span><span>${rateAmount(order.tax ?? 0, currency)}</span></div>
+    <div class="row total"><span>Total</span><span>${rateAmount(order.total, currency)}</span></div>
+    <div class="row"><span>Paid (${escape(order.payment_method)})</span><span>${rateAmount(collectedFor(order), currency)}</span></div>
     <div class="row"><span>Payment status</span><span>${escape(order.payment_status ?? "paid")}</span></div>
     <p class="muted" style="text-align:center;margin-top:24px">Thank you</p></body></html>`);
   popup.document.close();
@@ -178,56 +200,82 @@ function Orders() {
     () => reportOrders.filter((order) => order.status !== "cancelled"),
     [reportOrders],
   );
-  const gross = reportSales.reduce((sum, order) => sum + Number(order.total), 0);
-  const collected = reportSales.reduce((sum, order) => sum + collectedFor(order), 0);
-  const due = Math.max(0, gross - collected);
+  const gross = currencyTotals(reportSales, (order) => Number(order.total));
+  const collected = currencyTotals(reportSales, collectedFor);
+  const due = {
+    LKR: Math.max(0, gross.LKR - collected.LKR),
+    USD: Math.max(0, gross.USD - collected.USD),
+  };
   const activeOrder = allOrders.find((order) => order.id === selectedId) ?? null;
 
   const topItems = useMemo(() => {
-    const totals = new Map<string, { qty: number; sales: number }>();
+    const totals = new Map<
+      string,
+      { name: string; currency: "LKR" | "USD"; qty: number; sales: number }
+    >();
     for (const order of reportSales) {
+      const currency = orderCurrency(order);
       for (const item of order.order_items) {
-        const current = totals.get(item.name) ?? { qty: 0, sales: 0 };
+        const key = `${currency}:${item.name}`;
+        const current = totals.get(key) ?? { name: item.name, currency, qty: 0, sales: 0 };
         current.qty += Number(item.qty);
         current.sales += Number(item.qty) * Number(item.price);
-        totals.set(item.name, current);
+        totals.set(key, current);
       }
     }
     return [...totals.entries()]
-      .map(([name, values]) => ({ name, ...values }))
+      .map(([, values]) => values)
       .sort((a, b) => b.qty - a.qty || b.sales - a.sales)
       .slice(0, 10);
   }, [reportSales]);
   const paymentMix = useMemo(() => {
-    const totals = new Map<string, number>();
+    const totals = new Map<string, { method: string; currency: "LKR" | "USD"; amount: number }>();
     for (const order of reportSales) {
+      const currency = orderCurrency(order);
       const history = order.payment_history ?? [];
       if (history.length) {
         for (const payment of history) {
-          totals.set(payment.method, (totals.get(payment.method) ?? 0) + Number(payment.amount));
+          const key = `${payment.method}:${currency}`;
+          const current = totals.get(key) ?? { method: payment.method, currency, amount: 0 };
+          current.amount += Number(payment.amount);
+          totals.set(key, current);
         }
       } else {
         const amount = collectedFor(order);
         if (amount > 0) {
-          totals.set(order.payment_method, (totals.get(order.payment_method) ?? 0) + amount);
+          const key = `${order.payment_method}:${currency}`;
+          const current = totals.get(key) ?? {
+            method: order.payment_method,
+            currency,
+            amount: 0,
+          };
+          current.amount += amount;
+          totals.set(key, current);
         }
       }
     }
-    return [...totals.entries()].sort((a, b) => b[1] - a[1]);
+    return [...totals.values()].sort((a, b) => b.amount - a.amount);
   }, [reportSales]);
   const salesByDay = useMemo(() => {
-    const totals = new Map<string, { orders: number; gross: number; collected: number }>();
+    const totals = new Map<
+      string,
+      { date: string; currency: "LKR" | "USD"; orders: number; gross: number; collected: number }
+    >();
     for (const order of reportOrders) {
       const date = hotelToday(new Date(order.created_at));
-      const current = totals.get(date) ?? { orders: 0, gross: 0, collected: 0 };
+      const currency = orderCurrency(order);
+      const key = `${date}:${currency}`;
+      const current = totals.get(key) ?? { date, currency, orders: 0, gross: 0, collected: 0 };
       current.orders += 1;
       if (order.status !== "cancelled") {
         current.gross += Number(order.total);
         current.collected += collectedFor(order);
       }
-      totals.set(date, current);
+      totals.set(key, current);
     }
-    return [...totals.entries()].sort(([a], [b]) => a.localeCompare(b));
+    return [...totals.values()].sort(
+      (a, b) => a.date.localeCompare(b.date) || a.currency.localeCompare(b.currency),
+    );
   }, [reportOrders]);
 
   async function changeStatus(id: string, status: string) {
@@ -282,23 +330,29 @@ function Orders() {
   }
 
   function exportSummary() {
-    const grouped = new Map<string, { count: number; gross: number; collected: number }>();
+    const grouped = new Map<
+      string,
+      { date: string; currency: "LKR" | "USD"; count: number; gross: number; collected: number }
+    >();
     for (const order of reportOrders) {
       const date = hotelToday(new Date(order.created_at));
-      const item = grouped.get(date) ?? { count: 0, gross: 0, collected: 0 };
+      const currency = orderCurrency(order);
+      const key = `${date}:${currency}`;
+      const item = grouped.get(key) ?? { date, currency, count: 0, gross: 0, collected: 0 };
       item.count += 1;
       if (order.status !== "cancelled") {
         item.gross += Number(order.total);
         item.collected += collectedFor(order);
       }
-      grouped.set(date, item);
+      grouped.set(key, item);
     }
     downloadCsv("vaasal-daily-sales.csv", [
-      ["Date", "Orders", "Gross sales (LKR)", "Collected (LKR)", "Due (LKR)"],
-      ...[...grouped.entries()]
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([date, item]) => [
-          date,
+      ["Date", "Currency", "Orders", "Gross sales", "Collected", "Due"],
+      ...[...grouped.values()]
+        .sort((a, b) => a.date.localeCompare(b.date) || a.currency.localeCompare(b.currency))
+        .map((item) => [
+          item.date,
+          item.currency,
           item.count,
           item.gross.toFixed(2),
           item.collected.toFixed(2),
@@ -335,13 +389,19 @@ function Orders() {
       </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {[
-          ["Orders", reportOrders.length],
-          ["Gross sales", lkr(gross)],
-          ["Collected", lkr(collected)],
-          ["Outstanding", lkr(due)],
-          ["Average bill", lkr(reportSales.length ? gross / reportSales.length : 0)],
-        ].map(([label, value]) => (
+        {(() => {
+          const average = {
+            LKR: reportSales.length ? gross.LKR / reportSales.length : 0,
+            USD: reportSales.length ? gross.USD / reportSales.length : 0,
+          };
+          return [
+            ["Orders", reportOrders.length],
+            ["Gross sales", formatCurrencyTotals(gross)],
+            ["Collected", formatCurrencyTotals(collected)],
+            ["Outstanding", formatCurrencyTotals(due)],
+            ["Average bill", formatCurrencyTotals(average)],
+          ];
+        })().map(([label, value]) => (
           <div key={label} className="bg-card p-5 shadow-luxe">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">{label}</div>
             <div className="mt-2 font-display text-2xl text-primary">{value}</div>
@@ -417,7 +477,9 @@ function Orders() {
                         {order.payment_status ?? "paid"}
                       </Badge>
                       <div className="mt-1 text-muted-foreground">
-                        {lkr(paid)} paid · {lkr(Math.max(0, Number(order.total) - paid))} due
+                        {rateAmount(paid, orderCurrency(order))} paid ·{" "}
+                        {rateAmount(Math.max(0, Number(order.total) - paid), orderCurrency(order))}{" "}
+                        due
                       </div>
                     </div>
                   </TableCell>
@@ -445,7 +507,9 @@ function Orders() {
                       </SelectContent>
                     </Select>
                   </TableCell>
-                  <TableCell className="text-right">{lkr(order.total)}</TableCell>
+                  <TableCell className="text-right">
+                    {rateAmount(order.total, orderCurrency(order))}
+                  </TableCell>
                   <TableCell>
                     <Button
                       size="icon"
@@ -539,7 +603,10 @@ function Orders() {
                     {request.items_summary}
                   </TableCell>
                   <TableCell>
-                    {lkr(request.converted_total ?? request.subtotal_estimate)}
+                    {rateAmount(
+                      request.converted_total ?? request.subtotal_estimate,
+                      request.price_currency ?? "LKR",
+                    )}
                     {request.converted_total !== undefined && (
                       <div className="text-xs text-muted-foreground">Final POS total</div>
                     )}
@@ -620,8 +687,13 @@ function Orders() {
               variant="outline"
               onClick={() =>
                 downloadCsv("vaasal-top-items.csv", [
-                  ["Item", "Quantity", "Sales (LKR)"],
-                  ...topItems.map((item) => [item.name, item.qty, item.sales.toFixed(2)]),
+                  ["Item", "Currency", "Quantity", "Sales"],
+                  ...topItems.map((item) => [
+                    item.name,
+                    item.currency,
+                    item.qty,
+                    item.sales.toFixed(2),
+                  ]),
                 ])
               }
             >
@@ -631,8 +703,8 @@ function Orders() {
               variant="outline"
               onClick={() =>
                 downloadCsv("vaasal-payment-mix.csv", [
-                  ["Method", "Collected (LKR)"],
-                  ...paymentMix.map(([method, amount]) => [method, amount.toFixed(2)]),
+                  ["Method", "Currency", "Collected"],
+                  ...paymentMix.map((item) => [item.method, item.currency, item.amount.toFixed(2)]),
                 ])
               }
             >
@@ -657,12 +729,15 @@ function Orders() {
                     <TableCell colSpan={3}>No orders in this period.</TableCell>
                   </TableRow>
                 )}
-                {salesByDay.map(([date, totals]) => (
-                  <TableRow key={date}>
-                    <TableCell>{date}</TableCell>
+                {salesByDay.map((totals) => (
+                  <TableRow key={`${totals.date}:${totals.currency}`}>
+                    <TableCell>
+                      {totals.date} · {totals.currency}
+                    </TableCell>
                     <TableCell>{totals.orders}</TableCell>
                     <TableCell className="text-right">
-                      {lkr(totals.gross)} / {lkr(totals.collected)}
+                      {rateAmount(totals.gross, totals.currency)} /{" "}
+                      {rateAmount(totals.collected, totals.currency)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -686,10 +761,12 @@ function Orders() {
                   </TableRow>
                 )}
                 {topItems.map((item) => (
-                  <TableRow key={item.name}>
+                  <TableRow key={`${item.currency}:${item.name}`}>
                     <TableCell>{item.name}</TableCell>
                     <TableCell>{item.qty}</TableCell>
-                    <TableCell className="text-right">{lkr(item.sales)}</TableCell>
+                    <TableCell className="text-right">
+                      {rateAmount(item.sales, item.currency)}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -710,10 +787,12 @@ function Orders() {
                     <TableCell colSpan={2}>No payments in this period.</TableCell>
                   </TableRow>
                 )}
-                {paymentMix.map(([method, amount]) => (
-                  <TableRow key={method}>
-                    <TableCell className="capitalize">{method.replace("_", " ")}</TableCell>
-                    <TableCell className="text-right">{lkr(amount)}</TableCell>
+                {paymentMix.map(({ method, currency, amount }) => (
+                  <TableRow key={`${method}:${currency}`}>
+                    <TableCell className="capitalize">
+                      {method.replace("_", " ")} · {currency}
+                    </TableCell>
+                    <TableCell className="text-right">{rateAmount(amount, currency)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -755,39 +834,48 @@ function Orders() {
                 {activeOrder.order_items.map((item) => (
                   <div key={item.id} className="flex justify-between gap-3">
                     <span>
-                      {item.qty} × {item.name} · {lkr(item.price)} each
+                      {item.qty} × {item.name} ·{" "}
+                      {rateAmount(item.price, orderCurrency(activeOrder))} each
                     </span>
-                    <span>{lkr(Number(item.price) * Number(item.qty))}</span>
+                    <span>
+                      {rateAmount(
+                        Number(item.price) * Number(item.qty),
+                        orderCurrency(activeOrder),
+                      )}
+                    </span>
                   </div>
                 ))}
                 <div className="flex justify-between pt-2">
                   <span>Subtotal</span>
-                  <span>{lkr(activeOrder.subtotal)}</span>
+                  <span>{rateAmount(activeOrder.subtotal, orderCurrency(activeOrder))}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Discount</span>
-                  <span>− {lkr(activeOrder.discount)}</span>
+                  <span>− {rateAmount(activeOrder.discount, orderCurrency(activeOrder))}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Service charge</span>
-                  <span>{lkr(activeOrder.service_charge)}</span>
+                  <span>{rateAmount(activeOrder.service_charge, orderCurrency(activeOrder))}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Tax</span>
-                  <span>{lkr(activeOrder.tax ?? 0)}</span>
+                  <span>{rateAmount(activeOrder.tax ?? 0, orderCurrency(activeOrder))}</span>
                 </div>
                 <div className="flex justify-between font-semibold">
                   <span>Total</span>
-                  <span>{lkr(activeOrder.total)}</span>
+                  <span>{rateAmount(activeOrder.total, orderCurrency(activeOrder))}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Paid</span>
-                  <span>{lkr(collectedFor(activeOrder))}</span>
+                  <span>{rateAmount(collectedFor(activeOrder), orderCurrency(activeOrder))}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Due</span>
                   <span>
-                    {lkr(Math.max(0, Number(activeOrder.total) - collectedFor(activeOrder)))}
+                    {rateAmount(
+                      Math.max(0, Number(activeOrder.total) - collectedFor(activeOrder)),
+                      orderCurrency(activeOrder),
+                    )}
                   </span>
                 </div>
               </div>
@@ -843,8 +931,8 @@ function Orders() {
                   <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
                     {activeOrder.payment_history.map((payment, index) => (
                       <li key={`${payment.at}-${index}`}>
-                        {new Date(payment.at).toLocaleString()} · {lkr(payment.amount)} ·{" "}
-                        {payment.method}
+                        {new Date(payment.at).toLocaleString()} ·{" "}
+                        {rateAmount(payment.amount, orderCurrency(activeOrder))} · {payment.method}
                       </li>
                     ))}
                   </ul>

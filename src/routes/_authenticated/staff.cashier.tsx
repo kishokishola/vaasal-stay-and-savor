@@ -2,16 +2,19 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarCheck, CreditCard, Plus, Receipt, ShoppingCart, Wallet } from "lucide-react";
 import {
+  getCustomerOrderRequests,
   getBookings,
   getOrders,
   getPettyCash,
   subscribeToBookings,
+  subscribeToCustomerOrderRequests,
   subscribeToOrders,
   subscribeToPettyCash,
   type Booking,
+  type CustomerOrderRequest,
   type Order,
 } from "@/lib/firebase-data";
-import { collectedOrderAmount, lkr } from "@/lib/hotel";
+import { collectedOrderAmount, lkr, rateAmount } from "@/lib/hotel";
 import { hotelDayBounds, hotelToday } from "@/lib/dates";
 import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
 
@@ -41,10 +44,11 @@ function CashierDashboard() {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey,
     queryFn: async () => {
-      const [bookings, orders, pettyCash] = await Promise.all([
+      const [bookings, orders, pettyCash, customerOrderRequests] = await Promise.all([
         getBookings(),
         getOrders(),
         getPettyCash(),
+        getCustomerOrderRequests(),
       ]);
       const bookingsToday = bookings.filter(
         (booking) => booking.created_at >= bounds.start && booking.created_at < bounds.end,
@@ -83,16 +87,19 @@ function CashierDashboard() {
       const restaurantRevenue = orders
         .filter((order) => order.status !== "cancelled" && order.payment_status !== "refunded")
         .reduce(
-          (sum, order) =>
-            sum +
-            paymentCollectedToday(
+          (sum, order) => {
+            const amount = paymentCollectedToday(
               collectedOrderAmount(order),
               order.payment_history,
               order.created_at,
               bounds.start,
               bounds.end,
-            ),
-          0,
+            );
+            if (order.price_currency === "USD") sum.usd += amount;
+            else sum.lkr += amount;
+            return sum;
+          },
+          { lkr: 0, usd: 0 },
         );
       const pettyCashSpent = pettyCash.entries
         .filter(
@@ -105,8 +112,11 @@ function CashierDashboard() {
       return {
         bookingsToday: bookingsToday.length,
         ordersToday: ordersToday.length,
-        revenueLkr: roomRevenueLkr + restaurantRevenue,
-        revenueUsd: roomRevenueUsd,
+        pendingCustomerOrders: customerOrderRequests.filter(
+          (request) => request.status === "pending",
+        ).length,
+        revenueLkr: roomRevenueLkr + restaurantRevenue.lkr,
+        revenueUsd: roomRevenueUsd + restaurantRevenue.usd,
         pettyCashSpent,
         recentBookings: [...bookings]
           .sort((a, b) => b.created_at.localeCompare(a.created_at))
@@ -114,12 +124,16 @@ function CashierDashboard() {
         recentOrders: [...orders]
           .sort((a, b) => b.created_at.localeCompare(a.created_at))
           .slice(0, 5),
+        recentCustomerOrders: customerOrderRequests
+          .filter((request) => request.status === "pending")
+          .slice(0, 5),
       };
     },
   });
   useFirestoreRealtime(queryKey, subscribeToBookings);
   useFirestoreRealtime(queryKey, subscribeToOrders);
   useFirestoreRealtime(queryKey, subscribeToPettyCash);
+  useFirestoreRealtime(queryKey, subscribeToCustomerOrderRequests);
 
   const metrics = [
     {
@@ -137,7 +151,7 @@ function CashierDashboard() {
     {
       label: "Revenue (Paid Today)",
       value: data ? lkr(data.revenueLkr) : "–",
-      detail: data?.revenueUsd ? `Plus ${data.revenueUsd.toFixed(2)} USD` : undefined,
+      detail: data?.revenueUsd ? `Plus ${rateAmount(data.revenueUsd, "USD")}` : undefined,
       icon: CreditCard,
     },
     {
@@ -145,6 +159,12 @@ function CashierDashboard() {
       value: data ? lkr(data.pettyCashSpent) : "–",
       detail: undefined,
       icon: Wallet,
+    },
+    {
+      label: "New Website Orders",
+      value: data?.pendingCustomerOrders ?? "–",
+      detail: undefined,
+      icon: ShoppingCart,
     },
   ] as const;
   const actions = [
@@ -199,7 +219,7 @@ function CashierDashboard() {
           </button>
         </div>
       )}
-      <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-5">
         {metrics.map(({ label, value, detail, icon: Icon }) => (
           <article key={label} className="bg-card p-6 shadow-luxe">
             <Icon className="size-5 text-primary" />
@@ -228,9 +248,10 @@ function CashierDashboard() {
           ))}
         </div>
       </section>
-      <div className="mt-10 grid gap-6 xl:grid-cols-2">
+      <div className="mt-10 grid gap-6 xl:grid-cols-3">
         <RecentBookings bookings={data?.recentBookings ?? []} />
         <RecentOrders orders={data?.recentOrders ?? []} />
+        <RecentCustomerOrders requests={data?.recentCustomerOrders ?? []} />
       </div>
     </div>
   );
@@ -264,7 +285,9 @@ function RecentBookings({ bookings }: { bookings: Booking[] }) {
                   <td className="p-3">{booking.room_code}</td>
                   <td className="p-3">{booking.check_in}</td>
                   <td className="p-3 capitalize">{booking.status.replaceAll("_", " ")}</td>
-                  <td className="p-3">{lkr(booking.total)}</td>
+                  <td className="p-3">
+                    {rateAmount(booking.total, booking.rate_currency ?? "LKR")}
+                  </td>
                 </tr>
               ))
             ) : (
@@ -311,7 +334,7 @@ function RecentOrders({ orders }: { orders: Order[] }) {
                     {order.order_items.reduce((sum, item) => sum + Number(item.qty), 0)}
                   </td>
                   <td className="p-3">{new Date(order.created_at).toLocaleString()}</td>
-                  <td className="p-3">{lkr(order.total)}</td>
+                  <td className="p-3">{rateAmount(order.total, order.price_currency ?? "LKR")}</td>
                 </tr>
               ))
             ) : (
@@ -324,6 +347,46 @@ function RecentOrders({ orders }: { orders: Order[] }) {
           </tbody>
         </table>
       </div>
+    </section>
+  );
+}
+
+function RecentCustomerOrders({ requests }: { requests: CustomerOrderRequest[] }) {
+  return (
+    <section className="bg-card shadow-luxe">
+      <div className="flex items-center justify-between gap-3 border-b border-border p-5">
+        <h2 className="font-display text-xl">Website Order Requests</h2>
+        <Link
+          to="/staff/orders"
+          hash="customer-order-requests"
+          className="text-sm text-primary hover:underline"
+        >
+          View all
+        </Link>
+      </div>
+      <ul className="divide-y divide-border">
+        {requests.length ? (
+          requests.map((request) => (
+            <li key={request.id} className="p-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-medium">{request.customer_name}</span>
+                <span className="text-xs text-muted-foreground">
+                  {new Date(request.created_at).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </div>
+              <p className="mt-1 text-xs capitalize text-muted-foreground">
+                {request.order_type.replace("_", " ")} ·{" "}
+                {request.items_summary.replaceAll("\n", " · ")}
+              </p>
+            </li>
+          ))
+        ) : (
+          <li className="p-5 text-center text-sm text-muted-foreground">No new website orders.</li>
+        )}
+      </ul>
     </section>
   );
 }

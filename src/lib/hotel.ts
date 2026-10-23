@@ -21,6 +21,27 @@ export function rateAmount(amount: number | string, currency?: string) {
     : lkr(value);
 }
 
+export function menuItemRate(
+  item: {
+    price: number | string;
+    price_local?: number;
+    price_foreign?: number;
+    price_room_local?: number;
+    price_room_foreign?: number;
+  },
+  currency: "LKR" | "USD",
+  orderType: "dine_in" | "takeaway" | "room" = "dine_in",
+) {
+  if (orderType === "room") {
+    return currency === "USD"
+      ? Number(item.price_room_foreign ?? item.price_foreign ?? 0)
+      : Number(item.price_room_local ?? item.price_local ?? item.price);
+  }
+  return currency === "USD"
+    ? Number(item.price_foreign ?? 0)
+    : Number(item.price_local ?? item.price);
+}
+
 export function roomRate(
   room: {
     price: number;

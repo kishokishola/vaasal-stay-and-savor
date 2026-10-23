@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Users, Bath, Wifi, Snowflake } from "lucide-react";
-import { lkr, publicAsset } from "@/lib/hotel";
+import { publicAsset, rateAmount, roomRate } from "@/lib/hotel";
+import type { PriceCurrency } from "@/lib/pricing";
 import type { Tables } from "@/integrations/supabase/types";
 
 type RoomCardData = Tables<"rooms"> & {
@@ -11,10 +12,13 @@ type RoomCardData = Tables<"rooms"> & {
 export function RoomCard({
   room,
   availability,
+  currency = "LKR",
 }: {
   room: RoomCardData;
   availability?: "Available today" | "Reserved today" | undefined;
+  currency?: PriceCurrency;
 }) {
+  const nightlyRate = roomRate(room, currency, "night");
   return (
     <Link
       to="/rooms/$code"
@@ -46,17 +50,11 @@ export function RoomCard({
         <h3 className="text-2xl">{room.name}</h3>
         <div className="mt-1 space-y-1 text-sm text-muted-foreground">
           <p>
-            <span className="text-primary font-medium">{lkr(room.price_local ?? room.price)}</span>{" "}
-            / night · Local
+            <span className="text-primary font-medium">
+              {nightlyRate > 0 ? rateAmount(nightlyRate, currency) : "Rate not available"}
+            </span>{" "}
+            / night
           </p>
-          {room.price_foreign ? (
-            <p>
-              <span className="text-primary font-medium">
-                USD {room.price_foreign.toLocaleString()}
-              </span>{" "}
-              / night · Foreign
-            </p>
-          ) : null}
         </div>
         <div className="mt-4 flex flex-wrap gap-4 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">

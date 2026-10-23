@@ -2,13 +2,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Download } from "lucide-react";
 import {
   recordPettyCashTransaction,
   getPettyCash,
   subscribeToPettyCash,
 } from "@/lib/firebase-data";
 import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
+import { hotelToday } from "@/lib/dates";
 import { lkr } from "@/lib/hotel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,12 +41,54 @@ function PettyCash() {
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
   const [category, setCategory] = useState("Other");
+  const [historySearch, setHistorySearch] = useState("");
+  const [historyCategory, setHistoryCategory] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [busy, setBusy] = useState(false);
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["petty-cash"],
     queryFn: getPettyCash,
   });
   useFirestoreRealtime(["petty-cash"], subscribeToPettyCash);
+  const visibleEntries = (data?.entries ?? []).filter((entry) => {
+    const date = hotelToday(new Date(entry.created_at));
+    const term = historySearch.trim().toLowerCase();
+    return (
+      (!term ||
+        [entry.reason, entry.category, entry.created_by].some((value) =>
+          value.toLowerCase().includes(term),
+        )) &&
+      (historyCategory === "all" || entry.category === historyCategory) &&
+      (!dateFrom || date >= dateFrom) &&
+      (!dateTo || date <= dateTo)
+    );
+  });
+
+  function exportHistory() {
+    const rows = [
+      ["Date/time", "Type", "Category", "Reason", "Recorded by", "Amount (LKR)"],
+      ...visibleEntries.map((entry) => [
+        new Date(entry.created_at).toLocaleString(),
+        entry.kind,
+        entry.category,
+        entry.reason,
+        entry.created_by,
+        entry.amount.toFixed(2),
+      ]),
+    ];
+    const csv = rows
+      .map((row) => row.map((value) => `"${value.replaceAll('"', '""')}"`).join(","))
+      .join("\r\n");
+    const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "vaasal-petty-cash.csv";
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 
   async function submit() {
     setBusy(true);
@@ -148,7 +191,47 @@ function PettyCash() {
         </Button>
       </section>
       <section className="mt-8">
-        <h2 className="font-display text-2xl">Transaction history</h2>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h2 className="font-display text-2xl">Transaction history</h2>
+          <Button variant="outline" onClick={exportHistory}>
+            <Download /> Export CSV
+          </Button>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Input
+            aria-label="Search petty cash history"
+            placeholder="Search note, category or staff"
+            value={historySearch}
+            onChange={(event) => setHistorySearch(event.target.value)}
+          />
+          <Select value={historyCategory} onValueChange={setHistoryCategory}>
+            <SelectTrigger aria-label="Filter petty cash by category">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All categories</SelectItem>
+              {[...new Set(data?.entries.map((entry) => entry.category) ?? [])]
+                .sort((a, b) => a.localeCompare(b))
+                .map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+          <Input
+            aria-label="Petty cash from date"
+            type="date"
+            value={dateFrom}
+            onChange={(event) => setDateFrom(event.target.value)}
+          />
+          <Input
+            aria-label="Petty cash to date"
+            type="date"
+            value={dateTo}
+            onChange={(event) => setDateTo(event.target.value)}
+          />
+        </div>
         <div className="mt-4 overflow-x-auto bg-card shadow-luxe">
           <Table>
             <TableHeader>
@@ -174,14 +257,14 @@ function PettyCash() {
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !isError && !data?.entries.length && (
+              {!isLoading && !isError && !visibleEntries.length && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-muted-foreground">
-                    No petty cash entries yet.
+                    No petty cash entries match these filters.
                   </TableCell>
                 </TableRow>
               )}
-              {data?.entries.map((entry) => (
+              {visibleEntries.map((entry) => (
                 <TableRow key={entry.id}>
                   <TableCell className="text-sm">
                     {new Date(entry.created_at).toLocaleString()}

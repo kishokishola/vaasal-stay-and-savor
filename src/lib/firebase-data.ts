@@ -18,7 +18,7 @@ import { signInAnonymously } from "firebase/auth";
 import type { Tables } from "@/integrations/supabase/types";
 import { auth, db, requireFirebaseConfig } from "@/integrations/firebase/client";
 import { hotelToday } from "@/lib/dates";
-import { collectedOrderAmount, paymentStatusFor, roomRate } from "@/lib/hotel";
+import { collectedOrderAmount, menuItemRate, paymentStatusFor, roomRate } from "@/lib/hotel";
 import { parseStaffRole, type StaffRole } from "@/lib/staff-roles";
 
 export type Room = Tables<"rooms"> & {
@@ -32,6 +32,10 @@ export type Room = Tables<"rooms"> & {
 export type MenuItem = Tables<"menu_items"> & {
   deleted?: boolean;
   image_url?: string;
+  price_local?: number;
+  price_foreign?: number;
+  price_room_local?: number;
+  price_room_foreign?: number;
 };
 export type Booking = Tables<"bookings"> & {
   room_code: string;
@@ -49,6 +53,7 @@ export type Order = Omit<Tables<"orders">, "created_at"> & {
   customer_name?: string;
   customer_phone?: string;
   payment_status?: "paid" | "unpaid" | "partial" | "refunded";
+  price_currency?: "LKR" | "USD";
   tax?: number;
   booking_id?: string | null;
   paid_amount?: number;
@@ -80,6 +85,7 @@ export type CustomerOrderRequest = {
   order_reference: string | null;
   items_summary: string;
   subtotal_estimate: number;
+  price_currency?: "LKR" | "USD";
   notes: string | null;
   status: "pending" | "confirmed" | "in_prep" | "ready" | "completed" | "cancelled";
   created_at: string;
@@ -375,6 +381,8 @@ export async function createStaffBooking(input: {
   notes: string | null;
   rate_currency: "LKR" | "USD";
   rate_period: "night" | "day";
+  initial_payment?: number;
+  payment_method?: "cash" | "card" | "bank_transfer" | "online";
 }) {
   requireFirebaseConfig();
   const nights = dateRange(input.check_in, input.check_out);
@@ -399,6 +407,20 @@ export async function createStaffBooking(input: {
     if (!Number.isFinite(unitPrice) || unitPrice <= 0)
       throw new Error("This room does not have a valid price for the selected rate.");
     const now = new Date().toISOString();
+    const total = unitPrice * nights.length;
+    const initialPaidCents = Math.round(Number(input.initial_payment ?? 0) * 100);
+    const totalCents = Math.round(total * 100);
+    if (!Number.isSafeInteger(initialPaidCents) || initialPaidCents < 0)
+      throw new Error("Initial payment must be a valid non-negative amount.");
+    if (initialPaidCents > totalCents)
+      throw new Error("Initial payment cannot exceed the booking total.");
+    const initialPaymentMethod = input.payment_method ?? "cash";
+    if (
+      initialPaidCents > 0 &&
+      !["cash", "card", "bank_transfer", "online"].includes(initialPaymentMethod)
+    )
+      throw new Error("Choose a valid payment method for the initial payment.");
+    const initialPaid = initialPaidCents / 100;
     transaction.set(bookingRef, {
       room_id: input.roomId,
       guest_name: input.guest_name.trim(),
@@ -408,12 +430,22 @@ export async function createStaffBooking(input: {
       check_out: input.check_out,
       guests: input.guests,
       notes: input.notes?.trim() || null,
-      total: unitPrice * nights.length,
+      total,
       rate_currency: input.rate_currency,
       rate_period: input.rate_period,
-      paid_amount: 0,
-      payment_status: "unpaid",
-      payment_history: [],
+      paid_amount: initialPaid,
+      payment_status: paymentStatusFor(total, initialPaid),
+      payment_history:
+        initialPaidCents > 0
+          ? [
+              {
+                amount: initialPaid,
+                method: initialPaymentMethod,
+                at: now,
+                by: auth.currentUser?.email ?? "staff",
+              },
+            ]
+          : [],
       status: "confirmed",
       created_at: now,
     });
@@ -431,10 +463,10 @@ export async function createStaffBooking(input: {
 export async function recordBookingPayment(
   id: string,
   amount: number,
-  method: "cash" | "card" | "bank_transfer",
+  method: "cash" | "card" | "bank_transfer" | "online",
 ) {
   requireFirebaseConfig();
-  if (method !== "cash" && method !== "card" && method !== "bank_transfer")
+  if (!["cash", "card", "bank_transfer", "online"].includes(method))
     throw new Error("Choose a valid booking payment method.");
   if (!Number.isFinite(amount) || Math.round(amount * 100) <= 0)
     throw new Error("Enter a payment amount greater than zero.");
@@ -480,6 +512,10 @@ export async function addMenuItem(input: {
   name: string;
   category: string;
   price: number;
+  price_local: number;
+  price_foreign: number;
+  price_room_local: number;
+  price_room_foreign: number;
   description: string;
   image_url?: string;
 }) {
@@ -488,6 +524,14 @@ export async function addMenuItem(input: {
     throw new Error("Food name and category are required.");
   if (!Number.isFinite(input.price) || input.price <= 0)
     throw new Error("Food price must be greater than zero.");
+  if (!Number.isFinite(input.price_local) || input.price_local <= 0)
+    throw new Error("Local dining food price must be greater than zero.");
+  if (!Number.isFinite(input.price_foreign) || input.price_foreign <= 0)
+    throw new Error("Foreign dining food price must be greater than zero.");
+  if (!Number.isFinite(input.price_room_local) || input.price_room_local <= 0)
+    throw new Error("Room-service local food price must be greater than zero.");
+  if (!Number.isFinite(input.price_room_foreign) || input.price_room_foreign <= 0)
+    throw new Error("Room-service foreign food price must be greater than zero.");
   const item = doc(coll("menu_items"));
   await setDoc(item, {
     ...input,
@@ -516,6 +560,27 @@ export async function updateMenuItem(id: string, changes: Partial<MenuItem>) {
     (!Number.isFinite(Number(changes.price)) || changes.price <= 0)
   )
     throw new Error("Food price must be greater than zero.");
+  if (
+    changes.price_local !== undefined &&
+    (!Number.isFinite(Number(changes.price_local)) || Number(changes.price_local) <= 0)
+  )
+    throw new Error("Local food price must be greater than zero.");
+  if (
+    changes.price_foreign !== undefined &&
+    (!Number.isFinite(Number(changes.price_foreign)) || Number(changes.price_foreign) <= 0)
+  )
+    throw new Error("Foreign food price must be greater than zero.");
+  if (
+    changes.price_room_local !== undefined &&
+    (!Number.isFinite(Number(changes.price_room_local)) || Number(changes.price_room_local) <= 0)
+  )
+    throw new Error("Room-service local food price must be greater than zero.");
+  if (
+    changes.price_room_foreign !== undefined &&
+    (!Number.isFinite(Number(changes.price_room_foreign)) ||
+      Number(changes.price_room_foreign) <= 0)
+  )
+    throw new Error("Room-service foreign food price must be greater than zero.");
   if (changes.name !== undefined && !changes.name.trim()) throw new Error("Food name is required.");
   if (changes.category !== undefined && !changes.category.trim())
     throw new Error("Food category is required.");
@@ -537,6 +602,7 @@ export async function placeOrder(input: {
   discount_pct: number;
   service_pct: number;
   tax_pct: number;
+  price_currency?: "LKR" | "USD";
   payment_method: string;
   payment_status?: "paid" | "unpaid" | "partial";
   paid_amount?: number;
@@ -555,6 +621,7 @@ export async function placeOrder(input: {
     throw new Error("Add valid menu items before completing the order.");
   if (!["cash", "card", "online", "room_bill", "no_pay"].includes(input.payment_method))
     throw new Error("Choose a valid payment method.");
+  const priceCurrency = input.price_currency ?? "LKR";
   if (input.payment_method === "room_bill" && input.order_type !== "room")
     throw new Error("Room charges are only available for room-service orders.");
   if (input.order_type === "room" && (!input.room_code || !input.booking_id))
@@ -607,14 +674,14 @@ export async function placeOrder(input: {
       const data = snapshot.data();
       if (
         typeof data["name"] !== "string" ||
-        !Number.isFinite(Number(data["price"])) ||
-        Number(data["price"]) <= 0
+        !Number.isFinite(menuItemRate(data as MenuItem, priceCurrency, input.order_type)) ||
+        menuItemRate(data as MenuItem, priceCurrency, input.order_type) <= 0
       )
         throw new Error("A menu item has invalid pricing. Update the menu before ordering.");
       return {
         menu_item_id: snapshot.id,
         name: data["name"] as string,
-        price: Number(data["price"]),
+        price: menuItemRate(data as MenuItem, priceCurrency, input.order_type),
         qty: item.qty,
         id: crypto.randomUUID(),
         order_id: order.id,
@@ -681,6 +748,7 @@ export async function placeOrder(input: {
       tax,
       total,
       payment_method: input.payment_method,
+      price_currency: priceCurrency,
       payment_status: paymentStatus,
       paid_amount: paidAmount,
       cash_received: cashReceived,
@@ -710,6 +778,7 @@ export async function createCustomerOrderRequest(input: {
   items_summary: string;
   items: { menu_item_id: string; name: string; price: number; qty: number }[];
   subtotal_estimate: number;
+  price_currency?: "LKR" | "USD";
   notes: string | null;
 }) {
   requireFirebaseConfig();
@@ -717,6 +786,7 @@ export async function createCustomerOrderRequest(input: {
     throw new Error("Enter your name and phone number.");
   if (!["dine_in", "takeaway", "room"].includes(input.order_type))
     throw new Error("Choose a valid order type.");
+  const priceCurrency = input.price_currency ?? "LKR";
   if (!input.items_summary.trim() || input.items_summary.length > 4000)
     throw new Error("Your order contains too many items.");
   if (
@@ -743,6 +813,7 @@ export async function createCustomerOrderRequest(input: {
   const request = doc(coll("customer_order_requests"));
   await setDoc(request, {
     ...input,
+    price_currency: priceCurrency,
     customer_name: input.customer_name.trim(),
     customer_phone: input.customer_phone.trim(),
     status: "pending",
@@ -844,16 +915,18 @@ export async function convertCustomerOrderRequestToOrder(id: string) {
       )
         throw new Error("A requested item is no longer available. Contact the customer.");
       const menu = menuSnapshot.data();
-      if (
-        typeof menu["name"] !== "string" ||
-        !Number.isFinite(Number(menu["price"])) ||
-        Number(menu["price"]) <= 0
-      )
+      const currency = request.price_currency ?? "LKR";
+      const currentPrice = menuItemRate(menu as MenuItem, currency, request.order_type);
+      if (typeof menu["name"] !== "string" || !Number.isFinite(currentPrice) || currentPrice <= 0)
         throw new Error("A requested menu item has invalid pricing. Contact the customer.");
+      if (Math.round(currentPrice * 100) !== Math.round(Number(item.price) * 100))
+        throw new Error(
+          "A menu price changed after this request. Ask the customer to submit it again.",
+        );
       return {
         menu_item_id: menuSnapshot.id,
         name: menu["name"] as string,
-        price: Number(menu["price"]),
+        price: currentPrice,
         qty: item.qty,
         id: crypto.randomUUID(),
         order_id: orderRef.id,
@@ -880,6 +953,7 @@ export async function convertCustomerOrderRequestToOrder(id: string) {
       tax: 0,
       total: subtotal,
       payment_method: "cash",
+      price_currency: request.price_currency ?? "LKR",
       payment_status: "unpaid",
       paid_amount: 0,
       cash_received: 0,

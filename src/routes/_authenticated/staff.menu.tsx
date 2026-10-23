@@ -34,7 +34,10 @@ function MenuAdmin() {
   const [n, setN] = useState({
     name: "",
     category: "Mains",
-    price: "",
+    price_local: "",
+    price_foreign: "",
+    price_room_local: "",
+    price_room_foreign: "",
     description: "",
     image_url: "",
   });
@@ -99,7 +102,11 @@ function MenuAdmin() {
       await prepareMenuForWrite();
       await addMenuItem({
         ...n,
-        price: Number(n.price),
+        price: Number(n.price_local),
+        price_local: Number(n.price_local),
+        price_foreign: Number(n.price_foreign),
+        price_room_local: Number(n.price_room_local),
+        price_room_foreign: Number(n.price_room_foreign),
         ...(n.image_url ? { image_url: n.image_url } : {}),
       });
     } catch (error) {
@@ -107,7 +114,16 @@ function MenuAdmin() {
       return;
     }
     toast.success("Menu item added.");
-    setN({ name: "", category: n.category, price: "", description: "", image_url: "" });
+    setN({
+      name: "",
+      category: n.category,
+      price_local: "",
+      price_foreign: "",
+      price_room_local: "",
+      price_room_foreign: "",
+      description: "",
+      image_url: "",
+    });
     refresh();
   }
   async function patch(
@@ -116,6 +132,10 @@ function MenuAdmin() {
       name?: string;
       category?: string;
       price?: number;
+      price_local?: number;
+      price_foreign?: number;
+      price_room_local?: number;
+      price_room_foreign?: number;
       description?: string;
       image_url?: string;
       available?: boolean;
@@ -146,7 +166,7 @@ function MenuAdmin() {
       <h1 className="mt-2 text-4xl">Menu</h1>
       <form
         onSubmit={add}
-        className="mt-8 grid gap-3 bg-card p-5 shadow-luxe md:grid-cols-[2fr_1fr_1fr_2fr_auto]"
+        className="mt-8 grid gap-3 bg-card p-5 shadow-luxe sm:grid-cols-2 xl:grid-cols-4"
       >
         <Input
           placeholder="Item name"
@@ -161,13 +181,40 @@ function MenuAdmin() {
           onChange={(e) => setN({ ...n, category: e.target.value })}
         />
         <Input
-          placeholder="Price"
+          placeholder="Dining/takeaway · Local (LKR)"
           type="number"
           min={0.01}
           step="0.01"
           required
-          value={n.price}
-          onChange={(e) => setN({ ...n, price: e.target.value })}
+          value={n.price_local}
+          onChange={(e) => setN({ ...n, price_local: e.target.value })}
+        />
+        <Input
+          placeholder="Dining/takeaway · Foreign (USD)"
+          type="number"
+          min={0.01}
+          step="0.01"
+          required
+          value={n.price_foreign}
+          onChange={(e) => setN({ ...n, price_foreign: e.target.value })}
+        />
+        <Input
+          placeholder="Room booking/service · Local (LKR)"
+          type="number"
+          min={0.01}
+          step="0.01"
+          required
+          value={n.price_room_local}
+          onChange={(e) => setN({ ...n, price_room_local: e.target.value })}
+        />
+        <Input
+          placeholder="Room booking/service · Foreign (USD)"
+          type="number"
+          min={0.01}
+          step="0.01"
+          required
+          value={n.price_room_foreign}
+          onChange={(e) => setN({ ...n, price_room_foreign: e.target.value })}
         />
         <Input
           placeholder="Description"
@@ -208,7 +255,10 @@ function MenuAdmin() {
               <TableHead>Item</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Description</TableHead>
-              <TableHead>Price</TableHead>
+              <TableHead>Dining · Local LKR</TableHead>
+              <TableHead>Dining · Foreign USD</TableHead>
+              <TableHead>Room booking/service · Local LKR</TableHead>
+              <TableHead>Room booking/service · Foreign USD</TableHead>
               <TableHead>Available</TableHead>
               <TableHead />
             </TableRow>
@@ -216,12 +266,12 @@ function MenuAdmin() {
           <TableBody>
             {isLoading && (
               <TableRow>
-                <TableCell colSpan={7}>Loading menu items…</TableCell>
+                <TableCell colSpan={10}>Loading menu items…</TableCell>
               </TableRow>
             )}
             {!isLoading && !isError && !data?.filter((item) => !item.deleted).length && (
               <TableRow>
-                <TableCell colSpan={7} className="text-muted-foreground">
+                <TableCell colSpan={10} className="text-muted-foreground">
                   No menu items yet. Add the first food item above.
                 </TableCell>
               </TableRow>
@@ -278,10 +328,62 @@ function MenuAdmin() {
                       type="number"
                       className="w-28"
                       defaultValue={m.price}
-                      onBlur={(e) =>
-                        Number(e.target.value) !== Number(m.price) &&
-                        patch(m.id, { price: Number(e.target.value) })
-                      }
+                      min={0.01}
+                      step="0.01"
+                      onBlur={(e) => {
+                        if (!e.target.value) return;
+                        const price = Number(e.target.value);
+                        if (price !== Number(m.price_local ?? m.price))
+                          patch(m.id, { price, price_local: price });
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      className="w-28"
+                      min={0.01}
+                      step="0.01"
+                      defaultValue={m.price_foreign ?? ""}
+                      aria-label={`Foreign price in USD for ${m.name}`}
+                      onBlur={(e) => {
+                        if (!e.target.value) return;
+                        const price_foreign = Number(e.target.value);
+                        if (price_foreign !== Number(m.price_foreign))
+                          patch(m.id, { price_foreign });
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      className="w-28"
+                      min={0.01}
+                      step="0.01"
+                      defaultValue={m.price_room_local ?? ""}
+                      aria-label={`Room-service local price in LKR for ${m.name}`}
+                      onBlur={(e) => {
+                        if (!e.target.value) return;
+                        const price_room_local = Number(e.target.value);
+                        if (price_room_local !== Number(m.price_room_local))
+                          patch(m.id, { price_room_local });
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      className="w-28"
+                      min={0.01}
+                      step="0.01"
+                      defaultValue={m.price_room_foreign ?? ""}
+                      aria-label={`Room-service foreign price in USD for ${m.name}`}
+                      onBlur={(e) => {
+                        if (!e.target.value) return;
+                        const price_room_foreign = Number(e.target.value);
+                        if (price_room_foreign !== Number(m.price_room_foreign))
+                          patch(m.id, { price_room_foreign });
+                      }}
                     />
                   </TableCell>
                   <TableCell>

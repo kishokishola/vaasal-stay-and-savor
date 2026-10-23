@@ -81,7 +81,7 @@ function orderPayments(order: Order): PaymentRow[] {
       at: payment.at,
       method: payment.method,
       source: "Restaurant",
-      currency: "LKR",
+      currency: order.price_currency ?? "LKR",
       amount: Number(payment.amount),
     }));
   }
@@ -92,7 +92,7 @@ function orderPayments(order: Order): PaymentRow[] {
       at: order.created_at,
       method: order.payment_method || "recorded",
       source: "Restaurant",
-      currency: "LKR",
+      currency: order.price_currency ?? "LKR",
       amount: paid,
     },
   ];
@@ -215,14 +215,17 @@ function Funds() {
       .filter((payment) => payment.source === "Room booking" && payment.currency === "USD")
       .reduce((sum, payment) => sum + payment.amount, 0);
     const restaurantLkr = payments
-      .filter((payment) => payment.source === "Restaurant")
+      .filter((payment) => payment.source === "Restaurant" && payment.currency === "LKR")
+      .reduce((sum, payment) => sum + payment.amount, 0);
+    const restaurantUsd = payments
+      .filter((payment) => payment.source === "Restaurant" && payment.currency === "USD")
       .reduce((sum, payment) => sum + payment.amount, 0);
     const expensesLkr = expenses.reduce((sum, entry) => sum + Number(entry.amount), 0);
     const previousRoomLkr = previousPayments
       .filter((payment) => payment.source === "Room booking" && payment.currency === "LKR")
       .reduce((sum, payment) => sum + payment.amount, 0);
     const previousRestaurantLkr = previousPayments
-      .filter((payment) => payment.source === "Restaurant")
+      .filter((payment) => payment.source === "Restaurant" && payment.currency === "LKR")
       .reduce((sum, payment) => sum + payment.amount, 0);
     const previousExpensesLkr = previousExpenses.reduce(
       (sum, entry) => sum + Number(entry.amount),
@@ -310,8 +313,10 @@ function Funds() {
       roomLkr,
       roomUsd,
       restaurantLkr,
+      restaurantUsd,
       expensesLkr,
       netLkr: roomLkr + restaurantLkr - expensesLkr,
+      netUsd: roomUsd + restaurantUsd,
       cashReceivedLkr,
       depositedLkr,
       cashInHandLkr: cashReceivedLkr - depositedLkr,
@@ -366,8 +371,8 @@ function Funds() {
       <div className="eyebrow">Accounts</div>
       <h1 className="mt-2 text-4xl">Manage funds</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Realtime collections and recorded petty-cash expenses. Room payments remain separated by
-        currency.
+        Realtime collections and recorded petty-cash expenses. Room and restaurant payments remain
+        separated by currency.
       </p>
       <div className="mt-6 flex flex-wrap items-end gap-3">
         <div>
@@ -460,9 +465,11 @@ function Funds() {
         {[
           ["Room collections · LKR", report ? lkr(report.roomLkr) : "–"],
           ["Room collections · USD", report ? rateAmount(report.roomUsd, "USD") : "–"],
-          ["Restaurant collections", report ? lkr(report.restaurantLkr) : "–"],
+          ["Restaurant collections · LKR", report ? lkr(report.restaurantLkr) : "–"],
+          ["Restaurant collections · USD", report ? rateAmount(report.restaurantUsd, "USD") : "–"],
           ["Petty-cash expenses", report ? lkr(report.expensesLkr) : "–"],
           ["Net collections · LKR", report ? lkr(report.netLkr) : "–"],
+          ["Net collections · USD", report ? rateAmount(report.netUsd, "USD") : "–"],
           ["Cash deposited", report ? lkr(report.depositedLkr) : "–"],
           ["Balance in hand", report ? lkr(report.cashInHandLkr) : "–"],
         ].map(([label, value]) => (

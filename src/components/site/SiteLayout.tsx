@@ -7,6 +7,14 @@ import { ParallaxImage } from "./Parallax";
 import { BrandLogo } from "./BrandLogo";
 import { useStaffAuth } from "@/hooks/useStaffAuth";
 import { useSiteSettings } from "@/lib/site-settings";
+import { usePriceCurrency } from "@/lib/price-currency-context";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const nav = [
   { to: "/", label: "Home" },
@@ -27,8 +35,28 @@ export function SiteLayout({
   const [open, setOpen] = useState(false);
   const { data: staffAuth } = useStaffAuth();
   const { data: site } = useSiteSettings();
+  const { currency, setCurrency } = usePriceCurrency();
   const isAdmin = !!staffAuth?.isAdmin;
   const hotel = site ?? HOTEL;
+  const currencySelector = (
+    <Select
+      value={currency}
+      onValueChange={(value) => {
+        if (value === "LKR" || value === "USD") setCurrency(value);
+      }}
+    >
+      <SelectTrigger
+        aria-label="Choose local or foreign prices"
+        className="h-9 w-[142px] border-gold/40 bg-espresso/40 text-xs text-espresso-foreground"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="LKR">Local · LKR</SelectItem>
+        <SelectItem value="USD">Foreign · USD</SelectItem>
+      </SelectContent>
+    </Select>
+  );
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -71,6 +99,7 @@ export function SiteLayout({
                 </Link>
               </Button>
             )}
+            {currencySelector}
             <Button asChild variant="luxe" size="sm">
               <Link to="/rooms">Book Now</Link>
             </Button>
@@ -81,6 +110,7 @@ export function SiteLayout({
         </div>
         {open && (
           <div className="flex flex-col gap-4 border-t border-white/10 bg-espresso/90 px-6 pb-6 backdrop-blur-xl md:hidden">
+            {currencySelector}
             {nav.map((n) => (
               <Link
                 key={n.to}

@@ -11,7 +11,7 @@ import {
   closeKitchenOrder,
 } from "@/lib/firebase-data";
 import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
-import { lkr } from "@/lib/hotel";
+import { rateAmount } from "@/lib/hotel";
 
 export const Route = createFileRoute("/_authenticated/staff/kitchen")({
   component: Kitchen,
@@ -135,7 +135,7 @@ function Kitchen() {
                     )}
                     <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                       <span>{order.payment_status ?? "paid"}</span>
-                      <span>{lkr(order.total)}</span>
+                      <span>{rateAmount(order.total, order.price_currency ?? "LKR")}</span>
                     </div>
                     {column.next ? (
                       <Button

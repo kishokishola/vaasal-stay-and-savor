@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   getBookings,
@@ -36,8 +36,13 @@ function Payments() {
   const qc = useQueryClient();
   const [target, setTarget] = useState<PaymentTarget | null>(null);
   const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState<"cash" | "card" | "bank_transfer">("cash");
+  const [method, setMethod] = useState<"cash" | "card" | "bank_transfer" | "online">("cash");
   const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState("");
+  const [roomFilter, setRoomFilter] = useState("all");
+  const [paymentFilter, setPaymentFilter] = useState("due");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const {
     data: bookings = [],
     isLoading: bookingsLoading,
@@ -56,23 +61,106 @@ function Payments() {
   });
   useFirestoreRealtime(["bookings"], subscribeToBookings);
   useFirestoreRealtime(["orders"], subscribeToOrders);
-  const unpaidBookings = bookings.filter(
-    (booking) =>
-      booking.status !== "cancelled" &&
-      booking.status !== "checked_out" &&
-      Number(booking.paid_amount ?? 0) < Number(booking.total),
+  const validBookings = useMemo(
+    () => bookings.filter((booking) => booking.status !== "cancelled"),
+    [bookings],
+  );
+  const unpaidBookings = validBookings.filter(
+    (booking) => Number(booking.paid_amount ?? 0) < Number(booking.total),
+  );
+  const guestBookingIds = useMemo(
+    () => new Set(validBookings.map((booking) => booking.id)),
+    [validBookings],
   );
   const unpaidOrders = orders.filter(
     (order) => order.status !== "cancelled" && collectedOrderAmount(order) < Number(order.total),
   );
+  const standaloneUnpaidOrders = unpaidOrders.filter(
+    (order) =>
+      !(order.order_type === "room" && order.booking_id && guestBookingIds.has(order.booking_id)),
+  );
+  const guestBills = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return validBookings
+      .map((booking) => {
+        const roomOrders = orders.filter(
+          (order) =>
+            order.booking_id === booking.id &&
+            order.status !== "cancelled" &&
+            order.order_type === "room",
+        );
+        const roomPaid = Number(booking.paid_amount ?? 0);
+        const roomDue = Math.max(0, Number(booking.total) - roomPaid);
+        const sumFood = (currency: "LKR" | "USD") => {
+          const ordersInCurrency = roomOrders.filter(
+            (order) => (order.price_currency ?? "LKR") === currency,
+          );
+          const total = ordersInCurrency.reduce((sum, order) => sum + Number(order.total), 0);
+          const paid = ordersInCurrency.reduce(
+            (sum, order) => sum + collectedOrderAmount(order),
+            0,
+          );
+          return { total, paid, due: Math.max(0, total - paid) };
+        };
+        const foodLkr = sumFood("LKR");
+        const foodUsd = sumFood("USD");
+        const hasDue = roomDue > 0 || foodLkr.due > 0 || foodUsd.due > 0;
+        const matchesSearch =
+          !term ||
+          [booking.guest_name, booking.guest_phone, booking.room_code].some((value) =>
+            value.toLowerCase().includes(term),
+          );
+        const matchesDate =
+          (!dateFrom || booking.check_in >= dateFrom) && (!dateTo || booking.check_in <= dateTo);
+        return {
+          booking,
+          roomOrders,
+          roomPaid,
+          roomDue,
+          foodLkr,
+          foodUsd,
+          hasDue,
+          matchesSearch,
+          matchesDate,
+        };
+      })
+      .filter(
+        (bill) =>
+          bill.matchesSearch &&
+          bill.matchesDate &&
+          (roomFilter === "all" || bill.booking.room_code === roomFilter) &&
+          (paymentFilter === "all" || (paymentFilter === "due" ? bill.hasDue : !bill.hasDue)),
+      )
+      .sort((a, b) => b.booking.check_in.localeCompare(a.booking.check_in));
+  }, [dateFrom, dateTo, orders, paymentFilter, roomFilter, search, validBookings]);
   const dueLkr =
-    unpaidBookings
+    validBookings
       .filter((booking) => booking.rate_currency !== "USD")
-      .reduce((sum, booking) => sum + Number(booking.total) - Number(booking.paid_amount ?? 0), 0) +
-    unpaidOrders.reduce((sum, order) => sum + Number(order.total) - collectedOrderAmount(order), 0);
-  const dueUsd = unpaidBookings
-    .filter((booking) => booking.rate_currency === "USD")
-    .reduce((sum, booking) => sum + Number(booking.total) - Number(booking.paid_amount ?? 0), 0);
+      .reduce(
+        (sum, booking) =>
+          sum + Math.max(0, Number(booking.total) - Number(booking.paid_amount ?? 0)),
+        0,
+      ) +
+    unpaidOrders
+      .filter((order) => (order.price_currency ?? "LKR") !== "USD")
+      .reduce(
+        (sum, order) => sum + Math.max(0, Number(order.total) - collectedOrderAmount(order)),
+        0,
+      );
+  const dueUsd =
+    validBookings
+      .filter((booking) => booking.rate_currency === "USD")
+      .reduce(
+        (sum, booking) =>
+          sum + Math.max(0, Number(booking.total) - Number(booking.paid_amount ?? 0)),
+        0,
+      ) +
+    unpaidOrders
+      .filter((order) => order.price_currency === "USD")
+      .reduce(
+        (sum, order) => sum + Math.max(0, Number(order.total) - collectedOrderAmount(order)),
+        0,
+      );
 
   async function collect() {
     if (!target) return;
@@ -143,43 +231,146 @@ function Payments() {
         </p>
       )}
       <section className="mt-8">
-        <h2 className="font-display text-2xl">Room bookings</h2>
-        {bookingsLoading && <p className="mt-3 text-muted-foreground">Loading booking balances…</p>}
+        <h2 className="font-display text-2xl">Room & food bills</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Room and restaurant charges are grouped by guest and retained in their original
+          currencies.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Input
+            aria-label="Search guest bills"
+            placeholder="Guest, phone or room"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+          <Select value={roomFilter} onValueChange={setRoomFilter}>
+            <SelectTrigger aria-label="Filter by room">
+              <SelectValue placeholder="All rooms" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All rooms</SelectItem>
+              {[...new Set(validBookings.map((booking) => booking.room_code))]
+                .sort((a, b) => a.localeCompare(b))
+                .map((room) => (
+                  <SelectItem key={room} value={room}>
+                    Room {room}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+          <Select value={paymentFilter} onValueChange={setPaymentFilter}>
+            <SelectTrigger aria-label="Filter by payment status">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="due">Outstanding</SelectItem>
+              <SelectItem value="settled">Settled</SelectItem>
+              <SelectItem value="all">All bills</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              aria-label="Bookings from date"
+              type="date"
+              value={dateFrom}
+              onChange={(event) => setDateFrom(event.target.value)}
+            />
+            <Input
+              aria-label="Bookings to date"
+              type="date"
+              value={dateTo}
+              onChange={(event) => setDateTo(event.target.value)}
+            />
+          </div>
+        </div>
+        {bookingsLoading && <p className="mt-3 text-muted-foreground">Loading guest bills…</p>}
         <div className="mt-3 space-y-3">
-          {unpaidBookings.map((booking) => {
-            const paid = Number(booking.paid_amount ?? 0);
-            const due = Math.max(0, Number(booking.total) - paid);
+          {guestBills.map((bill) => {
+            const { booking, roomOrders, roomPaid, roomDue, foodLkr, foodUsd } = bill;
             return (
-              <article
-                key={booking.id}
-                className="flex flex-wrap items-center justify-between gap-4 bg-card p-5 shadow-luxe"
-              >
-                <div>
-                  <div className="font-medium">
-                    {booking.guest_name} · {booking.room_code}
+              <article key={booking.id} className="bg-card p-5 shadow-luxe">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <div className="font-medium">
+                      {booking.guest_name} · Room {booking.room_code}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {booking.guest_phone} · {booking.check_in} → {booking.check_out} ·{" "}
+                      {booking.status.replace("_", " ")}
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {booking.check_in} → {booking.check_out} · {booking.status}
+                  <Badge variant={bill.hasDue ? "destructive" : "secondary"}>
+                    {bill.hasDue ? "Balance due" : "Settled"}
+                  </Badge>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="border border-border p-3">
+                    <div className="text-xs uppercase tracking-widest text-muted-foreground">
+                      Room charge
+                    </div>
+                    <div className="mt-1 text-sm">
+                      {rateAmount(roomPaid, booking.rate_currency)} paid ·{" "}
+                      <strong>{rateAmount(roomDue, booking.rate_currency)} due</strong>
+                    </div>
+                    {roomDue > 0 && (
+                      <Button
+                        className="mt-2"
+                        size="sm"
+                        onClick={() => {
+                          setTarget({ kind: "booking", value: booking });
+                          setAmount(String(roomDue));
+                        }}
+                      >
+                        Collect room payment
+                      </Button>
+                    )}
+                  </div>
+                  <div className="border border-border p-3">
+                    <div className="text-xs uppercase tracking-widest text-muted-foreground">
+                      Room-service food
+                    </div>
+                    <div className="mt-1 text-sm">
+                      {rateAmount(foodLkr.paid, "LKR")} paid ·{" "}
+                      <strong>{rateAmount(foodLkr.due, "LKR")} due</strong>
+                      {(foodUsd.total > 0 || foodUsd.paid > 0) && (
+                        <div>
+                          {rateAmount(foodUsd.paid, "USD")} paid ·{" "}
+                          <strong>{rateAmount(foodUsd.due, "USD")} due</strong>
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {roomOrders.length} attached order(s) · {rateAmount(foodLkr.total, "LKR")}{" "}
+                      total
+                      {foodUsd.total > 0 && ` · ${rateAmount(foodUsd.total, "USD")} total`}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {roomOrders
+                        .filter((order) => Number(order.total) > collectedOrderAmount(order))
+                        .map((order) => (
+                          <Button
+                            key={order.id}
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setTarget({ kind: "order", value: order });
+                              setAmount(String(Number(order.total) - collectedOrderAmount(order)));
+                            }}
+                          >
+                            Collect order #{order.order_no}
+                          </Button>
+                        ))}
+                    </div>
                   </div>
                 </div>
-                <div className="text-sm">
-                  {rateAmount(paid, booking.rate_currency)} paid ·{" "}
-                  <strong>{rateAmount(due, booking.rate_currency)} due</strong>
+                <div className="mt-3 text-right text-xs text-muted-foreground">
+                  Guest food charges are included in the restaurant balance above.
                 </div>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setTarget({ kind: "booking", value: booking });
-                    setAmount(String(due));
-                  }}
-                >
-                  Collect payment
-                </Button>
               </article>
             );
           })}
-          {!bookingsLoading && !bookingsError && !unpaidBookings.length && (
-            <p className="text-sm text-muted-foreground">No outstanding booking payments.</p>
+          {!bookingsLoading && !bookingsError && !guestBills.length && (
+            <p className="text-sm text-muted-foreground">No guest bills match these filters.</p>
           )}
         </div>
       </section>
@@ -187,7 +378,7 @@ function Payments() {
         <h2 className="font-display text-2xl">Restaurant orders</h2>
         {ordersLoading && <p className="mt-3 text-muted-foreground">Loading order balances…</p>}
         <div className="mt-3 space-y-3">
-          {unpaidOrders.map((order) => {
+          {standaloneUnpaidOrders.map((order) => {
             const paid = collectedOrderAmount(order);
             const due = Math.max(0, Number(order.total) - paid);
             return (
@@ -205,8 +396,9 @@ function Payments() {
                   </div>
                 </div>
                 <div className="text-sm">
-                  <Badge variant="secondary">{order.payment_status ?? "unpaid"}</Badge> {lkr(paid)}{" "}
-                  paid · <strong>{lkr(due)} due</strong>
+                  <Badge variant="secondary">{order.payment_status ?? "unpaid"}</Badge>{" "}
+                  {rateAmount(paid, order.price_currency ?? "LKR")} paid ·{" "}
+                  <strong>{rateAmount(due, order.price_currency ?? "LKR")} due</strong>
                 </div>
                 <Button
                   size="sm"
@@ -220,7 +412,7 @@ function Payments() {
               </article>
             );
           })}
-          {!ordersLoading && !ordersError && !unpaidOrders.length && (
+          {!ordersLoading && !ordersError && !standaloneUnpaidOrders.length && (
             <p className="text-sm text-muted-foreground">No outstanding restaurant payments.</p>
           )}
         </div>
@@ -247,13 +439,21 @@ function Payments() {
               Outstanding:{" "}
               {rateAmount(
                 selectedDue,
-                target?.kind === "booking" ? target.value.rate_currency : "LKR",
+                target?.kind === "booking"
+                  ? (target.value.rate_currency ?? "LKR")
+                  : target?.kind === "order"
+                    ? (target.value.price_currency ?? "LKR")
+                    : "LKR",
               )}
             </p>
             <div>
               <label htmlFor="payment-amount" className="text-sm font-medium">
                 Amount (
-                {target?.kind === "booking" && target.value.rate_currency === "USD" ? "USD" : "LKR"}
+                {target?.kind === "booking"
+                  ? (target.value.rate_currency ?? "LKR")
+                  : target?.kind === "order"
+                    ? (target.value.price_currency ?? "LKR")
+                    : "LKR"}
                 )
               </label>
               <Input
@@ -271,7 +471,12 @@ function Payments() {
               <Select
                 value={method}
                 onValueChange={(value) => {
-                  if (value === "cash" || value === "card" || value === "bank_transfer")
+                  if (
+                    value === "cash" ||
+                    value === "card" ||
+                    value === "bank_transfer" ||
+                    value === "online"
+                  )
                     setMethod(value);
                 }}
               >
@@ -282,6 +487,7 @@ function Payments() {
                   <SelectItem value="cash">Cash</SelectItem>
                   <SelectItem value="card">Card</SelectItem>
                   <SelectItem value="bank_transfer">Bank transfer</SelectItem>
+                  <SelectItem value="online">Online payment</SelectItem>
                 </SelectContent>
               </Select>
             </div>

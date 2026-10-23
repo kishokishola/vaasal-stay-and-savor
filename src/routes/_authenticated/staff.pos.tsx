@@ -8,6 +8,7 @@ import {
   placeOrder,
   subscribeToBookings,
   subscribeToMenuItems,
+  type MenuItem,
 } from "@/lib/firebase-data";
 import { getPublicMenuItems } from "@/lib/public-catalog";
 import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
@@ -23,7 +24,8 @@ import {
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Booking } from "@/lib/firebase-data";
-import { lkr, orderTotals, HOTEL } from "@/lib/hotel";
+import { menuItemRate, orderTotals, rateAmount, HOTEL } from "@/lib/hotel";
+import { usePriceCurrency } from "@/lib/price-currency-context";
 
 export const Route = createFileRoute("/_authenticated/staff/pos")({
   component: Pos,
@@ -48,10 +50,12 @@ type Receipt = {
   customerName: string;
   customerPhone: string;
   at: string;
+  currency: "LKR" | "USD";
 };
 
 function Pos() {
   const qc = useQueryClient();
+  const { currency, setCurrency } = usePriceCurrency();
   const {
     data: menu,
     isLoading: menuLoading,
@@ -91,13 +95,19 @@ function Pos() {
   );
   const currentCart = useMemo(
     () =>
-      cart.map((line) => {
+      cart.flatMap((line) => {
         const currentItem = menu?.find((item) => item.id === line.id);
-        return currentItem
-          ? { ...line, name: currentItem.name, price: Number(currentItem.price) }
-          : line;
+        return currentItem?.available && !currentItem.deleted
+          ? [
+              {
+                ...line,
+                name: currentItem.name,
+                price: menuItemRate(currentItem, currency, type),
+              },
+            ]
+          : [];
       }),
-    [cart, menu],
+    [cart, currency, menu, type],
   );
   const subtotal = useMemo(
     () => currentCart.reduce((sum, line) => sum + line.price * line.qty, 0),
@@ -113,13 +123,19 @@ function Pos() {
         : t.total;
   const changeReturned = method === "cash" ? Math.max(0, cashReceived - paidAmount) : 0;
 
-  const add = (m: { id: string; name: string; price: number }) =>
+  const add = (m: MenuItem) => {
+    const price = menuItemRate(m, currency, type);
+    if (price <= 0) {
+      toast.error(`Set a ${currency} price for ${m.name} before adding it.`);
+      return;
+    }
     setCart((c) => {
       const f = c.find((l) => l.id === m.id);
       return f
-        ? c.map((l) => (l.id === m.id ? { ...l, qty: l.qty + 1 } : l))
-        : [...c, { id: m.id, name: m.name, price: Number(m.price), qty: 1 }];
+        ? c.map((l) => (l.id === m.id ? { ...l, price, qty: l.qty + 1 } : l))
+        : [...c, { id: m.id, name: m.name, price, qty: 1 }];
     });
+  };
   const bump = (id: string, d: number) =>
     setCart((c) =>
       c.map((l) => (l.id === id ? { ...l, qty: l.qty + d } : l)).filter((l) => l.qty > 0),
@@ -128,6 +144,10 @@ function Pos() {
   async function checkout() {
     if (!cart.length) {
       toast.error("Cart is empty");
+      return;
+    }
+    if (currentCart.some((line) => line.price <= 0)) {
+      toast.error(`A selected food item does not have a ${currency} price.`);
       return;
     }
     if (!customerName.trim()) {
@@ -172,6 +192,7 @@ function Pos() {
         discount_pct: discountPct,
         service_pct: servicePct,
         tax_pct: taxPct,
+        price_currency: currency,
         payment_method: method,
         payment_status: paymentStatus,
         paid_amount: paidAmount,
@@ -203,6 +224,7 @@ function Pos() {
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         at: new Date().toLocaleString(),
+        currency,
       });
       setCart([]);
       setDiscountPct(0);
@@ -238,6 +260,20 @@ function Pos() {
               {c}
             </Button>
           ))}
+          <Select
+            value={currency}
+            onValueChange={(value) => {
+              if (value === "LKR" || value === "USD") setCurrency(value);
+            }}
+          >
+            <SelectTrigger aria-label="Choose food price currency" className="w-36">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="LKR">Local · LKR</SelectItem>
+              <SelectItem value="USD">Foreign · USD</SelectItem>
+            </SelectContent>
+          </Select>
           <div className="relative ml-auto">
             <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
             <Input
@@ -262,7 +298,11 @@ function Pos() {
                 {m.category}
               </div>
               <div className="mt-1 font-display text-lg leading-tight">{m.name}</div>
-              <div className="mt-2 text-sm text-primary">{lkr(m.price)}</div>
+              <div className="mt-2 text-sm text-primary">
+                {menuItemRate(m, currency, type) > 0
+                  ? rateAmount(menuItemRate(m, currency, type), currency)
+                  : "Price not set"}
+              </div>
             </button>
           ))}
           {menuLoading && <p className="text-sm text-muted-foreground">Loading menu…</p>}
@@ -356,7 +396,7 @@ function Pos() {
             <div key={l.id} className="flex items-center gap-2 text-sm">
               <div className="flex-1">
                 <div>{l.name}</div>
-                <div className="text-xs text-muted-foreground">{lkr(l.price)}</div>
+                <div className="text-xs text-muted-foreground">{rateAmount(l.price, currency)}</div>
               </div>
               <Button
                 size="icon"
@@ -440,13 +480,13 @@ function Pos() {
           </div>
         </div>
         <div className="mt-4 space-y-1 text-sm">
-          <Row l="Subtotal" v={lkr(subtotal)} />
-          {discount > 0 && <Row l="Discount" v={"− " + lkr(discount)} />}
-          <Row l={`Service (${servicePct}%)`} v={lkr(t.service)} />
-          {taxPct > 0 && <Row l={`Tax (${taxPct}%)`} v={lkr(t.tax)} />}
+          <Row l="Subtotal" v={rateAmount(subtotal, currency)} />
+          {discount > 0 && <Row l="Discount" v={"− " + rateAmount(discount, currency)} />}
+          <Row l={`Service (${servicePct}%)`} v={rateAmount(t.service, currency)} />
+          {taxPct > 0 && <Row l={`Tax (${taxPct}%)`} v={rateAmount(t.tax, currency)} />}
           <div className="flex justify-between pt-2 font-display text-2xl">
             <span>Total</span>
-            <span className="text-primary">{lkr(t.total)}</span>
+            <span className="text-primary">{rateAmount(t.total, currency)}</span>
           </div>
         </div>
         <div className="mt-4">
@@ -501,7 +541,7 @@ function Pos() {
         )}
         {paymentStatus === "partial" && method !== "room_bill" && method !== "no_pay" && (
           <div className="mt-3">
-            <Label>Amount paid now (LKR)</Label>
+            <Label>Amount paid now ({currency})</Label>
             <Input
               type="number"
               min={0.01}
@@ -514,7 +554,7 @@ function Pos() {
         )}
         {method === "cash" && paidAmount > 0 && (
           <div className="mt-3">
-            <Label>Cash received (LKR)</Label>
+            <Label>Cash received ({currency})</Label>
             <Input
               type="number"
               min={paidAmount}
@@ -522,14 +562,16 @@ function Pos() {
               value={cashReceived}
               onChange={(event) => setCashReceived(Number(event.target.value) || 0)}
             />
-            <p className="mt-1 text-xs text-muted-foreground">Change: {lkr(changeReturned)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Change: {rateAmount(changeReturned, currency)}
+            </p>
           </div>
         )}
         <Button
           variant="luxe"
           size="lg"
           className="mt-5 w-full"
-          disabled={busy || !cart.length}
+          disabled={busy || !currentCart.length || currentCart.some((line) => line.price <= 0)}
           onClick={checkout}
         >
           {busy ? "Saving…" : "Complete & Print"}
@@ -557,23 +599,29 @@ function Pos() {
               </div>
               <div className="border-t border-dashed border-border pt-2">
                 {receipt.lines.map((l) => (
-                  <Row key={l.id} l={`${l.qty} × ${l.name}`} v={lkr(l.price * l.qty)} />
+                  <Row
+                    key={l.id}
+                    l={`${l.qty} × ${l.name}`}
+                    v={rateAmount(l.price * l.qty, receipt.currency)}
+                  />
                 ))}
               </div>
               <div className="border-t border-dashed border-border pt-2">
-                <Row l="Subtotal" v={lkr(receipt.subtotal)} />
-                {receipt.discount > 0 && <Row l="Discount" v={"− " + lkr(receipt.discount)} />}
-                <Row l="Service" v={lkr(receipt.service)} />
-                {receipt.tax > 0 && <Row l="Tax" v={lkr(receipt.tax)} />}
+                <Row l="Subtotal" v={rateAmount(receipt.subtotal, receipt.currency)} />
+                {receipt.discount > 0 && (
+                  <Row l="Discount" v={"− " + rateAmount(receipt.discount, receipt.currency)} />
+                )}
+                <Row l="Service" v={rateAmount(receipt.service, receipt.currency)} />
+                {receipt.tax > 0 && <Row l="Tax" v={rateAmount(receipt.tax, receipt.currency)} />}
                 <div className="flex justify-between text-sm font-bold">
                   <span>TOTAL</span>
-                  <span>{lkr(receipt.total)}</span>
+                  <span>{rateAmount(receipt.total, receipt.currency)}</span>
                 </div>
                 <Row l="Paid by" v={receipt.method.replace("_", " ")} />
                 <Row l="Payment status" v={receipt.paymentStatus} />
-                <Row l="Paid" v={lkr(receipt.paidAmount)} />
+                <Row l="Paid" v={rateAmount(receipt.paidAmount, receipt.currency)} />
                 {receipt.cashReceived > receipt.paidAmount && (
-                  <Row l="Change" v={lkr(receipt.changeReturned)} />
+                  <Row l="Change" v={rateAmount(receipt.changeReturned, receipt.currency)} />
                 )}
               </div>
               <div className="pt-2 text-center">Thank you — come again!</div>

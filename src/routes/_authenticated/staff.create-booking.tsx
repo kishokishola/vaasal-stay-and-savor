@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { createStaffBooking, getRooms, subscribeToRooms } from "@/lib/firebase-data";
 import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
 import { hotelToday } from "@/lib/dates";
-import { lkr, roomRate } from "@/lib/hotel";
+import { lkr, rateAmount, roomRate } from "@/lib/hotel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,6 +34,10 @@ function CreateBooking() {
   const [notes, setNotes] = useState("");
   const [currency, setCurrency] = useState<"LKR" | "USD">("LKR");
   const [period, setPeriod] = useState<"night" | "day">("night");
+  const [initialPayment, setInitialPayment] = useState("0");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "bank_transfer" | "online">(
+    "cash",
+  );
   const [busy, setBusy] = useState(false);
   const {
     data: rooms = [],
@@ -53,11 +57,18 @@ function CreateBooking() {
   }, [checkIn, checkOut]);
   const rate = room ? Number(roomRate(room, currency, period)) : 0;
   const total = rate * nights;
+  const initialPaid = Number(initialPayment);
+  const validInitialPayment =
+    Number.isFinite(initialPaid) && initialPaid >= 0 && initialPaid <= total;
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!room || !nights) {
       toast.error("Choose a room and valid check-in/check-out dates.");
+      return;
+    }
+    if (!validInitialPayment) {
+      toast.error("Initial payment must be between zero and the booking total.");
       return;
     }
     setBusy(true);
@@ -73,6 +84,8 @@ function CreateBooking() {
         notes: notes.trim() || null,
         rate_currency: currency,
         rate_period: period,
+        initial_payment: initialPaid,
+        payment_method: paymentMethod,
       });
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["bookings"] }),
@@ -87,6 +100,7 @@ function CreateBooking() {
       setCheckIn("");
       setCheckOut("");
       setNotes("");
+      setInitialPayment("0");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not create this booking.");
     } finally {
@@ -116,7 +130,8 @@ function CreateBooking() {
             <SelectContent>
               {rooms.map((item) => (
                 <SelectItem key={item.id} value={item.id}>
-                  {item.code} — {item.name} · {lkr(item.price)} / night
+                  {item.code} — {item.name} ·{" "}
+                  {rateAmount(roomRate(item, currency, "night"), currency)} / night
                 </SelectItem>
               ))}
             </SelectContent>
@@ -230,6 +245,43 @@ function CreateBooking() {
             </SelectContent>
           </Select>
         </div>
+        <div>
+          <Label htmlFor="staff-booking-initial-payment">Initial payment ({currency})</Label>
+          <Input
+            id="staff-booking-initial-payment"
+            type="number"
+            min="0"
+            max={total}
+            step="0.01"
+            value={initialPayment}
+            onChange={(event) => setInitialPayment(event.target.value)}
+          />
+        </div>
+        <div>
+          <Label>Payment method</Label>
+          <Select
+            value={paymentMethod}
+            onValueChange={(value) => {
+              if (
+                value === "cash" ||
+                value === "card" ||
+                value === "bank_transfer" ||
+                value === "online"
+              )
+                setPaymentMethod(value);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="cash">Cash</SelectItem>
+              <SelectItem value="card">Card</SelectItem>
+              <SelectItem value="bank_transfer">Bank transfer</SelectItem>
+              <SelectItem value="online">Online payment</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div className="sm:col-span-2">
           <Label htmlFor="staff-booking-notes">Notes</Label>
           <Textarea
@@ -248,8 +300,18 @@ function CreateBooking() {
             <div className="font-display text-2xl text-primary">
               Total: {currency === "LKR" ? lkr(total) : `USD ${total.toLocaleString()}`}
             </div>
+            <div className="text-sm text-muted-foreground">
+              {currency === "LKR" ? lkr(initialPaid) : `USD ${initialPaid.toLocaleString()}`} paid ·{" "}
+              {currency === "LKR"
+                ? lkr(Math.max(0, total - initialPaid))
+                : `USD ${Math.max(0, total - initialPaid).toLocaleString()}`}{" "}
+              balance
+            </div>
           </div>
-          <Button type="submit" disabled={busy || !room || !nights || rate <= 0}>
+          <Button
+            type="submit"
+            disabled={busy || !room || !nights || rate <= 0 || !validInitialPayment}
+          >
             {busy ? "Saving…" : "Create and reserve"}
           </Button>
         </div>

@@ -15,16 +15,19 @@ import {
 } from "lucide-react";
 import {
   getBookings,
+  getCustomerOrderRequests,
   getMenuItems,
   getPettyCash,
   getReservedRoomIds,
   getRooms,
   subscribeToBookings,
+  subscribeToCustomerOrderRequests,
   subscribeToDateLocks,
   subscribeToMenuItems,
   subscribeToPettyCash,
   subscribeToRooms,
   type Booking,
+  type CustomerOrderRequest,
 } from "@/lib/firebase-data";
 import { lkr } from "@/lib/hotel";
 import { hotelToday } from "@/lib/dates";
@@ -40,15 +43,21 @@ function Overview() {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: overviewKey,
     queryFn: async () => {
-      const [bookings, rooms, reservedRoomIds, menuItems, pettyCash] = await Promise.all([
-        getBookings(),
-        getRooms(true),
-        getReservedRoomIds(today),
-        getMenuItems(),
-        getPettyCash(),
-      ]);
+      const [bookings, rooms, reservedRoomIds, menuItems, pettyCash, customerOrderRequests] =
+        await Promise.all([
+          getBookings(),
+          getRooms(true),
+          getReservedRoomIds(today),
+          getMenuItems(),
+          getPettyCash(),
+          getCustomerOrderRequests(),
+        ]);
       return {
         bookings,
+        customerOrderRequests,
+        pendingCustomerOrders: customerOrderRequests.filter(
+          (request) => request.status === "pending",
+        ).length,
         totalBookings: bookings.length,
         availableRooms: rooms.filter((room) => !reservedRoomIds.includes(room.id)).length,
         foodItems: menuItems.filter((item) => !item.deleted).length,
@@ -63,12 +72,18 @@ function Overview() {
   );
   useFirestoreRealtime(overviewKey, subscribeToMenuItems);
   useFirestoreRealtime(overviewKey, subscribeToPettyCash);
+  useFirestoreRealtime(overviewKey, subscribeToCustomerOrderRequests);
 
   const metrics = [
     { label: "Total Bookings", value: data?.totalBookings ?? "–", icon: CalendarCheck },
     { label: "Available Rooms", value: data?.availableRooms ?? "–", icon: BedDouble },
     { label: "Food Items", value: data?.foodItems ?? "–", icon: UtensilsCrossed },
     { label: "Petty Cash Balance", value: data ? lkr(data.funds) : "–", icon: Wallet },
+    {
+      label: "New Customer Orders",
+      value: data?.pendingCustomerOrders ?? "–",
+      icon: ShoppingCart,
+    },
   ] as const;
   const actions = [
     {
@@ -153,6 +168,9 @@ function Overview() {
     )
     .sort((a, b) => a.check_in.localeCompare(b.check_in))
     .slice(0, 5);
+  const recentCustomerOrders = (data?.customerOrderRequests ?? [])
+    .filter((request) => request.status === "pending")
+    .slice(0, 5);
 
   return (
     <div>
@@ -173,7 +191,7 @@ function Overview() {
           </button>
         </div>
       )}
-      <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-5">
         {metrics.map(({ label, value, icon: Icon }) => (
           <article key={label} className="bg-card p-6 shadow-luxe">
             <Icon className="size-5 text-primary" />
@@ -203,6 +221,27 @@ function Overview() {
           <div className="mt-4 divide-y divide-border">
             {upcoming.map((booking) => (
               <UpcomingBooking key={booking.id} booking={booking} />
+            ))}
+          </div>
+          <div className="mt-8 flex items-center justify-between gap-4">
+            <div>
+              <div className="eyebrow">Website dining</div>
+              <h2 className="mt-2 font-display text-2xl">New customer orders</h2>
+            </div>
+            <Link
+              to="/staff/orders"
+              hash="customer-order-requests"
+              className="text-sm text-primary hover:underline"
+            >
+              All orders
+            </Link>
+          </div>
+          {!isLoading && !isError && !recentCustomerOrders.length && (
+            <p className="mt-4 text-sm text-muted-foreground">No new customer orders.</p>
+          )}
+          <div className="mt-3 divide-y divide-border">
+            {recentCustomerOrders.map((request) => (
+              <RecentCustomerOrder key={request.id} request={request} />
             ))}
           </div>
         </section>
@@ -240,6 +279,22 @@ function UpcomingBooking({ booking }: { booking: Booking }) {
       <span className="text-xs capitalize text-muted-foreground">
         {booking.status.replaceAll("_", " ")}
       </span>
+    </div>
+  );
+}
+
+function RecentCustomerOrder({ request }: { request: CustomerOrderRequest }) {
+  return (
+    <div className="py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-medium">{request.customer_name}</span>
+        <span className="text-xs text-muted-foreground">
+          {new Date(request.created_at).toLocaleString()}
+        </span>
+      </div>
+      <div className="mt-1 text-xs capitalize text-muted-foreground">
+        {request.order_type.replace("_", " ")} · {request.items_summary.replaceAll("\n", " · ")}
+      </div>
     </div>
   );
 }

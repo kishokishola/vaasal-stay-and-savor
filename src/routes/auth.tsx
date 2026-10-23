@@ -10,19 +10,13 @@ import {
 } from "firebase/auth";
 import { auth, isFirebaseConfigured } from "@/integrations/firebase/client";
 import { getStaffAccess, submitStaffRegistration } from "@/lib/firebase-data";
-import { STAFF_ROLES, staffHomeRoute, staffRoleLabel, type StaffRole } from "@/lib/staff-roles";
+import { staffHomeRoute } from "@/lib/staff-roles";
 import { staffAuthErrorMessage, staffPasswordResetActionSettings } from "@/lib/staff-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { publicAsset } from "@/lib/hotel";
 import { BrandLogo } from "@/components/site/BrandLogo";
-import { ShieldCheck, UserRound, type LucideIcon } from "lucide-react";
-
-const staffRoleIcons: Record<StaffRole, LucideIcon> = {
-  admin: ShieldCheck,
-  cashier: UserRound,
-};
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -48,7 +42,6 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [selectedRole, setSelectedRole] = useState<StaffRole | null>(null);
   const [busy, setBusy] = useState(false);
   const [accessMessage, setAccessMessage] = useState("");
   const [resetMessage, setResetMessage] = useState("");
@@ -89,10 +82,6 @@ function AuthPage() {
       await createAccount();
       return;
     }
-    if (!selectedRole) {
-      setAccessMessage("Choose the staff portal assigned to your account before signing in.");
-      return;
-    }
     if (!configured) {
       toast.error(
         "Firebase is not configured yet. Ask the site administrator to finish Firebase setup.",
@@ -104,7 +93,7 @@ function AuthPage() {
 
     try {
       const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
-      let role: StaffRole | null;
+      let role: Awaited<ReturnType<typeof getStaffAccess>>;
       try {
         role = await getStaffAccess(credential.user.email ?? "");
       } catch (error) {
@@ -125,13 +114,6 @@ function AuthPage() {
         await signOut(auth);
         setAccessMessage(
           "This account is not assigned a staff role yet. Ask the administrator to add you as admin or cashier.",
-        );
-        return;
-      }
-      if (role !== selectedRole) {
-        await signOut(auth);
-        setAccessMessage(
-          `This account is assigned to ${staffRoleLabel(role)}. Select that portal and sign in again.`,
         );
         return;
       }
@@ -265,7 +247,7 @@ function AuthPage() {
               </h1>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 {mode === "signin"
-                  ? "Choose Admin or Cashier, then sign in with your email and password."
+                  ? "Sign in with your staff email and password. Your assigned role opens the right dashboard automatically."
                   : "Create a login with your email as username and a password you choose."}
               </p>
             </div>
@@ -308,46 +290,6 @@ function AuthPage() {
               >
                 {signupMessage}
               </p>
-            )}
-            {mode === "signin" && (
-              <fieldset className="space-y-2">
-                <legend className="text-sm font-medium">Staff portal</legend>
-                <div className="grid grid-cols-2 gap-2">
-                  {STAFF_ROLES.map((role) => {
-                    const Icon = staffRoleIcons[role];
-                    const selected = selectedRole === role;
-                    return (
-                      <label
-                        key={role}
-                        className={`flex min-h-12 cursor-pointer items-center gap-2 rounded-sm border px-3 py-2 text-left text-sm transition ${
-                          selected
-                            ? "border-primary bg-primary/10 text-primary ring-1 ring-primary/40"
-                            : "border-border/70 bg-white/30 text-foreground hover:border-primary/50 hover:bg-white/50"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="staff-role"
-                          value={role}
-                          checked={selected}
-                          disabled={busy}
-                          onChange={() => {
-                            setSelectedRole(role);
-                            setAccessMessage("");
-                          }}
-                          className="size-4 shrink-0 accent-primary"
-                        />
-                        <Icon className="size-4 shrink-0" />
-                        <span>{staffRoleLabel(role)}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  Your role is checked against your staff account after sign-in. Choosing a portal
-                  does not grant access.
-                </p>
-              </fieldset>
             )}
             {accessMessage && (
               <p

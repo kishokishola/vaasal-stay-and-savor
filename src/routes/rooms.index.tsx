@@ -7,6 +7,7 @@ import { publicAsset, roomsQuery } from "@/lib/hotel";
 import { getReservedRoomIds, subscribeToDateLocks, subscribeToRooms } from "@/lib/firebase-data";
 import { hotelToday } from "@/lib/dates";
 import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
+import { usePriceCurrency } from "@/lib/price-currency-context";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/rooms/")({
@@ -32,6 +33,7 @@ export const Route = createFileRoute("/rooms/")({
 
 function Rooms() {
   const [page, setPage] = useState(1);
+  const { currency } = usePriceCurrency();
   const { data, isLoading, isError } = useQuery(roomsQuery);
   const today = hotelToday();
   const availabilityKey = ["reserved-room-ids", today];
@@ -65,6 +67,7 @@ function Rooms() {
             <RoomCard
               key={r.id}
               room={r}
+              currency={currency}
               availability={
                 reservedRoomIds
                   ? reservedRoomIds.includes(r.id)
