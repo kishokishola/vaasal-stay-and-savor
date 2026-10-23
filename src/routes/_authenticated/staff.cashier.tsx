@@ -266,7 +266,7 @@ function RecentBookings({ bookings }: { bookings: Booking[] }) {
           View all
         </Link>
       </div>
-      <div className="overflow-x-auto">
+      <div className="mobile-card-table">
         <table className="w-full text-left text-sm">
           <thead className="text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
@@ -281,11 +281,19 @@ function RecentBookings({ bookings }: { bookings: Booking[] }) {
             {bookings.length ? (
               bookings.map((booking) => (
                 <tr key={booking.id}>
-                  <td className="p-3">{booking.guest_name}</td>
-                  <td className="p-3">{booking.room_code}</td>
-                  <td className="p-3">{booking.check_in}</td>
-                  <td className="p-3 capitalize">{booking.status.replaceAll("_", " ")}</td>
-                  <td className="p-3">
+                  <td data-label="Guest" className="p-3">
+                    {booking.guest_name}
+                  </td>
+                  <td data-label="Room" className="p-3">
+                    {booking.room_code}
+                  </td>
+                  <td data-label="Check-in" className="p-3">
+                    {booking.check_in}
+                  </td>
+                  <td data-label="Status" className="p-3 capitalize">
+                    {booking.status.replaceAll("_", " ")}
+                  </td>
+                  <td data-label="Total" className="p-3">
                     {rateAmount(booking.total, booking.rate_currency ?? "LKR")}
                   </td>
                 </tr>
@@ -314,7 +322,7 @@ function RecentOrders({ orders }: { orders: Order[] }) {
         </Link>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
+        <table className="mobile-card-table w-full text-left text-sm">
           <thead className="text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
               <th className="p-3">Bill</th>
@@ -328,13 +336,21 @@ function RecentOrders({ orders }: { orders: Order[] }) {
             {orders.length ? (
               orders.map((order) => (
                 <tr key={order.id}>
-                  <td className="p-3">#{order.order_no}</td>
-                  <td className="p-3">{order.customer_name || "Walk-in"}</td>
-                  <td className="p-3">
+                  <td data-label="Bill" className="p-3">
+                    #{order.order_no}
+                  </td>
+                  <td data-label="Customer" className="p-3">
+                    {order.customer_name || "Walk-in"}
+                  </td>
+                  <td data-label="Items" className="p-3">
                     {order.order_items.reduce((sum, item) => sum + Number(item.qty), 0)}
                   </td>
-                  <td className="p-3">{new Date(order.created_at).toLocaleString()}</td>
-                  <td className="p-3">{rateAmount(order.total, order.price_currency ?? "LKR")}</td>
+                  <td data-label="Time" className="p-3">
+                    {new Date(order.created_at).toLocaleString()}
+                  </td>
+                  <td data-label="Total" className="p-3">
+                    {rateAmount(order.total, order.price_currency ?? "LKR")}
+                  </td>
                 </tr>
               ))
             ) : (

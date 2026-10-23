@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ArrowDownToLine, ArrowUpFromLine, Download } from "lucide-react";
 import {
@@ -46,11 +46,22 @@ function PettyCash() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [busy, setBusy] = useState(false);
-  const { data, isLoading, isError, error } = useQuery({
+  const [liveError, setLiveError] = useState("");
+  const [submitError, setSubmitError] = useState("");
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["petty-cash"],
     queryFn: getPettyCash,
   });
-  useFirestoreRealtime(["petty-cash"], subscribeToPettyCash);
+  useFirestoreRealtime(["petty-cash"], subscribeToPettyCash, true, (nextError) =>
+    setLiveError(nextError.message),
+  );
+  useEffect(() => {
+    if (data) setLiveError("");
+  }, [data]);
+  const balance = Number(data?.balance ?? 0);
+  const enteredAmount = Number(amount);
+  const amountIsValid = Number.isFinite(enteredAmount) && enteredAmount > 0;
+  const insufficientBalance = kind === "expense" && amountIsValid && enteredAmount > balance;
   const visibleEntries = (data?.entries ?? []).filter((entry) => {
     const date = hotelToday(new Date(entry.created_at));
     const term = historySearch.trim().toLowerCase();
@@ -91,6 +102,7 @@ function PettyCash() {
   }
 
   async function submit() {
+    setSubmitError("");
     setBusy(true);
     try {
       await recordPettyCashTransaction({
@@ -104,7 +116,9 @@ function PettyCash() {
       await qc.invalidateQueries({ queryKey: ["petty-cash"] });
       toast.success(kind === "top_up" ? "Petty cash replenished." : "Expense recorded.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not update petty cash.");
+      const message = error instanceof Error ? error.message : "Could not update petty cash.";
+      setSubmitError(message);
+      toast.error(message);
     } finally {
       setBusy(false);
     }
@@ -114,16 +128,56 @@ function PettyCash() {
     <div>
       <div className="eyebrow">Restaurant</div>
       <h1 className="mt-2 text-4xl">Petty cash</h1>
+      <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+        Add funds before recording expenses. Each entry updates the balance and the live ledger
+        together; balances cannot go below zero.
+      </p>
+      {liveError && (
+        <div role="alert" className="mt-4 rounded border border-destructive/40 p-4 text-sm">
+          Live petty-cash updates stopped: {liveError}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="ml-3"
+            onClick={() => void refetch()}
+          >
+            Reload balance
+          </Button>
+        </div>
+      )}
+      {isError && (
+        <p role="alert" className="mt-4 text-sm text-destructive">
+          Petty cash could not be loaded: {error.message}
+        </p>
+      )}
+      {!isLoading && !isError && balance === 0 && (
+        <p
+          role="status"
+          className="mt-4 rounded-sm border border-primary/30 bg-primary/5 p-4 text-sm"
+        >
+          Petty-cash balance is LKR 0.00. Select “Add funds” to record the opening cash amount
+          before you enter expenses.
+        </p>
+      )}
       <div className="mt-6 bg-card p-6 shadow-luxe">
         <div className="text-xs uppercase tracking-widest text-muted-foreground">
           Current balance
         </div>
-        <div className="mt-2 font-display text-3xl text-primary">{lkr(data?.balance ?? 0)}</div>
+        <div className="mt-2 font-display text-3xl text-primary">
+          {isLoading ? "Loading…" : lkr(balance)}
+        </div>
         <p className="mt-1 text-xs text-muted-foreground">
           Realtime balance from the audited top-up and expense ledger.
         </p>
       </div>
-      <section className="mt-6 bg-card p-6 shadow-luxe">
+      <form
+        className="mt-6 bg-card p-6 shadow-luxe"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
         <h2 className="font-display text-2xl">Record a transaction</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div>
@@ -149,8 +203,10 @@ function PettyCash() {
               id="petty-cash-amount"
               type="number"
               min="0.01"
+              max="10000000"
               step="0.01"
               value={amount}
+              required
               onChange={(event) => setAmount(event.target.value)}
             />
           </div>
@@ -176,20 +232,32 @@ function PettyCash() {
             <Input
               id="petty-cash-reason"
               maxLength={255}
+              required
               value={reason}
               onChange={(event) => setReason(event.target.value)}
             />
           </div>
         </div>
+        {insufficientBalance && (
+          <p role="alert" className="mt-3 text-sm text-destructive">
+            This expense is above the current balance of {lkr(balance)}. Change the type to “Add
+            funds” first, or enter a smaller expense.
+          </p>
+        )}
+        {submitError && (
+          <p role="alert" className="mt-3 text-sm text-destructive">
+            Transaction was not saved: {submitError}
+          </p>
+        )}
         <Button
+          type="submit"
           className="mt-4"
-          disabled={busy || !amount || !reason.trim()}
-          onClick={() => void submit()}
+          disabled={busy || !amountIsValid || !reason.trim() || insufficientBalance}
         >
           {kind === "top_up" ? <ArrowDownToLine /> : <ArrowUpFromLine />}
           {busy ? "Saving…" : kind === "top_up" ? "Add funds" : "Record expense"}
         </Button>
-      </section>
+      </form>
       <section className="mt-8">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <h2 className="font-display text-2xl">Transaction history</h2>
@@ -232,7 +300,47 @@ function PettyCash() {
             onChange={(event) => setDateTo(event.target.value)}
           />
         </div>
-        <div className="mt-4 overflow-x-auto bg-card shadow-luxe">
+        <div className="mt-4 grid gap-3 md:hidden">
+          {isLoading && (
+            <p className="bg-card p-4 text-sm text-muted-foreground">Loading ledger…</p>
+          )}
+          {isError && (
+            <p role="alert" className="bg-card p-4 text-sm text-destructive">
+              {error instanceof Error ? error.message : "Could not load petty cash history."}
+            </p>
+          )}
+          {!isLoading && !isError && !visibleEntries.length && (
+            <p className="bg-card p-4 text-sm text-muted-foreground">
+              No petty cash entries match these filters.
+            </p>
+          )}
+          {visibleEntries.map((entry) => (
+            <article key={entry.id} className="rounded-sm bg-card p-4 shadow-luxe">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-medium">{entry.category}</div>
+                  <time className="mt-1 block text-xs text-muted-foreground">
+                    {new Date(entry.created_at).toLocaleString()}
+                  </time>
+                </div>
+                <Badge variant={entry.kind === "expense" ? "destructive" : "secondary"}>
+                  {entry.kind.replace("_", " ")}
+                </Badge>
+              </div>
+              <p className="mt-3 break-words text-sm">{entry.reason}</p>
+              <div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3">
+                <span className="min-w-0 break-all text-xs text-muted-foreground">
+                  {entry.created_by}
+                </span>
+                <span className="shrink-0 font-medium">
+                  {entry.kind === "expense" ? "− " : "+ "}
+                  {lkr(entry.amount)}
+                </span>
+              </div>
+            </article>
+          ))}
+        </div>
+        <div className="mt-4 hidden overflow-x-auto bg-card shadow-luxe md:block">
           <Table>
             <TableHeader>
               <TableRow>

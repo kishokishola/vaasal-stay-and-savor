@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import {
   BarChart3,
   BedDouble,
@@ -17,6 +18,7 @@ import {
   getBookings,
   getCustomerOrderRequests,
   getMenuItems,
+  getOrders,
   getPettyCash,
   getReservedRoomIds,
   getRooms,
@@ -24,6 +26,7 @@ import {
   subscribeToCustomerOrderRequests,
   subscribeToDateLocks,
   subscribeToMenuItems,
+  subscribeToOrders,
   subscribeToPettyCash,
   subscribeToRooms,
   type Booking,
@@ -43,22 +46,32 @@ function Overview() {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: overviewKey,
     queryFn: async () => {
-      const [bookings, rooms, reservedRoomIds, menuItems, pettyCash, customerOrderRequests] =
-        await Promise.all([
-          getBookings(),
-          getRooms(true),
-          getReservedRoomIds(today),
-          getMenuItems(),
-          getPettyCash(),
-          getCustomerOrderRequests(),
-        ]);
+      const [
+        bookings,
+        rooms,
+        reservedRoomIds,
+        menuItems,
+        pettyCash,
+        customerOrderRequests,
+        orders,
+      ] = await Promise.all([
+        getBookings(),
+        getRooms(true),
+        getReservedRoomIds(today),
+        getMenuItems(),
+        getPettyCash(),
+        getCustomerOrderRequests(),
+        getOrders(),
+      ]);
       return {
         bookings,
+        orders,
         customerOrderRequests,
         pendingCustomerOrders: customerOrderRequests.filter(
           (request) => request.status === "pending",
         ).length,
         totalBookings: bookings.length,
+        totalRooms: rooms.length,
         availableRooms: rooms.filter((room) => !reservedRoomIds.includes(room.id)).length,
         foodItems: menuItems.filter((item) => !item.deleted).length,
         funds: pettyCash.balance,
@@ -71,6 +84,7 @@ function Overview() {
     subscribeToDateLocks(today, onChange, onError),
   );
   useFirestoreRealtime(overviewKey, subscribeToMenuItems);
+  useFirestoreRealtime(overviewKey, subscribeToOrders);
   useFirestoreRealtime(overviewKey, subscribeToPettyCash);
   useFirestoreRealtime(overviewKey, subscribeToCustomerOrderRequests);
 
@@ -171,6 +185,26 @@ function Overview() {
   const recentCustomerOrders = (data?.customerOrderRequests ?? [])
     .filter((request) => request.status === "pending")
     .slice(0, 5);
+  const bookingStatusChart = Object.entries(
+    (data?.bookings ?? []).reduce<Record<string, number>>((counts, booking) => {
+      counts[booking.status] = (counts[booking.status] ?? 0) + 1;
+      return counts;
+    }, {}),
+  ).map(([status, value]) => ({ name: status.replaceAll("_", " "), value }));
+  const orderTypeChart = Object.entries(
+    (data?.orders ?? [])
+      .filter((order) => order.status !== "cancelled")
+      .reduce<Record<string, number>>((counts, order) => {
+        counts[order.order_type] = (counts[order.order_type] ?? 0) + 1;
+        return counts;
+      }, {}),
+  ).map(([type, value]) => ({ name: type.replaceAll("_", " "), value }));
+  const roomAvailabilityChart = data
+    ? [
+        { name: "Available", value: data.availableRooms },
+        { name: "Occupied / reserved", value: data.totalRooms - data.availableRooms },
+      ].filter((slice) => slice.value > 0)
+    : [];
 
   return (
     <div>
@@ -202,6 +236,23 @@ function Overview() {
           </article>
         ))}
       </div>
+      <section className="mt-8 grid gap-5 md:grid-cols-2 2xl:grid-cols-3">
+        <DashboardPie
+          title="Room availability today"
+          data={roomAvailabilityChart}
+          loading={isLoading}
+        />
+        <DashboardPie
+          title="Booking status breakdown"
+          data={bookingStatusChart}
+          loading={isLoading}
+        />
+        <DashboardPie
+          title="Food orders by service type"
+          data={orderTypeChart}
+          loading={isLoading}
+        />
+      </section>
       <div className="mt-10 grid gap-8 xl:grid-cols-[1fr_1.4fr]">
         <section className="bg-card p-6 shadow-luxe">
           <div className="flex items-center justify-between gap-4">
@@ -264,6 +315,42 @@ function Overview() {
         </section>
       </div>
     </div>
+  );
+}
+
+function DashboardPie({
+  title,
+  data,
+  loading,
+}: {
+  title: string;
+  data: { name: string; value: number }[];
+  loading: boolean;
+}) {
+  const colors = ["#25b6c2", "#28c77b", "#f4b942", "#f06b62", "#7189e8", "#9a6de0"];
+  return (
+    <section className="min-w-0 rounded-sm bg-card p-5 shadow-luxe">
+      <h2 className="font-display text-xl">{title}</h2>
+      {loading ? (
+        <p className="mt-4 text-sm text-muted-foreground">Loading live data…</p>
+      ) : data.length ? (
+        <div className="mt-3 h-64 min-w-0">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={data} dataKey="value" nameKey="name" outerRadius="72%">
+                {data.map((slice, index) => (
+                  <Cell key={slice.name} fill={colors[index % colors.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <p className="mt-4 text-sm text-muted-foreground">No data recorded for this chart yet.</p>
+      )}
+    </section>
   );
 }
 

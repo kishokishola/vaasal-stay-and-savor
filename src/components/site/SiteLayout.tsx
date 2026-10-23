@@ -69,7 +69,7 @@ export function SiteLayout({
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
           <Link to="/" aria-label="Vaasal Villa Hotel home">
-            <BrandLogo />
+            <BrandLogo name={hotel.name} />
           </Link>
           <nav className="hidden items-center gap-8 md:flex">
             {nav.map((n) => (
@@ -139,7 +139,7 @@ export function SiteLayout({
         <div className="mx-auto grid max-w-7xl gap-10 px-6 py-16 md:grid-cols-3">
           <div>
             <Link to="/" aria-label="Vaasal Villa Hotel home" className="inline-flex">
-              <BrandLogo size="footer" />
+              <BrandLogo size="footer" name={hotel.name} />
             </Link>
             <div className="gold-rule my-4" />
             <p className="text-sm opacity-75"> {hotel.tagline}. Warm hospitality, quiet luxury.</p>

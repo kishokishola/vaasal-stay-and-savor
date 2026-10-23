@@ -482,7 +482,7 @@ function Funds() {
       <section className="mt-8 grid gap-6 xl:grid-cols-2">
         <div className="overflow-x-auto bg-card p-5 shadow-luxe">
           <h2 className="font-display text-xl">Daily fund movement</h2>
-          <Table>
+          <Table className="mobile-card-table">
             <TableHeader>
               <TableRow>
                 <TableHead>Date</TableHead>
@@ -502,13 +502,15 @@ function Funds() {
               )}
               {report?.daily.map(([date, totals]) => (
                 <TableRow key={date}>
-                  <TableCell>{date}</TableCell>
-                  <TableCell>{lkr(totals.room)}</TableCell>
-                  <TableCell>{lkr(totals.restaurant)}</TableCell>
-                  <TableCell>{lkr(totals.cashReceived)}</TableCell>
-                  <TableCell>{lkr(totals.expenses)}</TableCell>
-                  <TableCell>{lkr(totals.deposited)}</TableCell>
-                  <TableCell>{lkr(totals.cashReceived - totals.deposited)}</TableCell>
+                  <TableCell data-label="Date">{date}</TableCell>
+                  <TableCell data-label="Rooms">{lkr(totals.room)}</TableCell>
+                  <TableCell data-label="Restaurant">{lkr(totals.restaurant)}</TableCell>
+                  <TableCell data-label="Cash received">{lkr(totals.cashReceived)}</TableCell>
+                  <TableCell data-label="Expenses">{lkr(totals.expenses)}</TableCell>
+                  <TableCell data-label="Deposited">{lkr(totals.deposited)}</TableCell>
+                  <TableCell data-label="In hand">
+                    {lkr(totals.cashReceived - totals.deposited)}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -516,7 +518,7 @@ function Funds() {
         </div>
         <div className="overflow-x-auto bg-card p-5 shadow-luxe">
           <h2 className="font-display text-xl">Collections by payment method</h2>
-          <Table>
+          <Table className="mobile-card-table">
             <TableHeader>
               <TableRow>
                 <TableHead>Method · source</TableHead>
@@ -531,8 +533,10 @@ function Funds() {
               )}
               {report?.paymentMix.map(([method, amount]) => (
                 <TableRow key={method}>
-                  <TableCell className="capitalize">{method.replaceAll("_", " ")}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell data-label="Method · source" className="capitalize">
+                    {method.replaceAll("_", " ")}
+                  </TableCell>
+                  <TableCell data-label="Collected" className="text-right">
                     {method.endsWith("(USD)") ? rateAmount(amount, "USD") : lkr(amount)}
                   </TableCell>
                 </TableRow>
@@ -542,7 +546,7 @@ function Funds() {
         </div>
         <div className="overflow-x-auto bg-card p-5 shadow-luxe">
           <h2 className="font-display text-xl">Petty cash by category</h2>
-          <Table>
+          <Table className="mobile-card-table">
             <TableHeader>
               <TableRow>
                 <TableHead>Category</TableHead>
@@ -557,8 +561,10 @@ function Funds() {
               )}
               {report?.categoryTotals.map(([category, amount]) => (
                 <TableRow key={category}>
-                  <TableCell>{category}</TableCell>
-                  <TableCell className="text-right">{lkr(amount)}</TableCell>
+                  <TableCell data-label="Category">{category}</TableCell>
+                  <TableCell data-label="Spent" className="text-right">
+                    {lkr(amount)}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -650,7 +656,7 @@ function Funds() {
         </div>
         <div className="overflow-x-auto bg-card p-5 shadow-luxe xl:col-span-2">
           <h2 className="font-display text-xl">Deposit history</h2>
-          <Table>
+          <Table className="mobile-card-table">
             <TableHeader>
               <TableRow>
                 <TableHead>Date</TableHead>
@@ -672,10 +678,12 @@ function Funds() {
               )}
               {deposits?.map((deposit) => (
                 <TableRow key={deposit.id}>
-                  <TableCell>{deposit.deposit_date}</TableCell>
-                  <TableCell>{deposit.deposited_by}</TableCell>
-                  <TableCell>{deposit.notes || "—"}</TableCell>
-                  <TableCell className="text-right">{lkr(deposit.amount)}</TableCell>
+                  <TableCell data-label="Date">{deposit.deposit_date}</TableCell>
+                  <TableCell data-label="Recorded by">{deposit.deposited_by}</TableCell>
+                  <TableCell data-label="Notes">{deposit.notes || "—"}</TableCell>
+                  <TableCell data-label="Amount" className="text-right">
+                    {lkr(deposit.amount)}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

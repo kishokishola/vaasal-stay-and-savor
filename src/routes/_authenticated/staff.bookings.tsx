@@ -157,7 +157,7 @@ function Bookings() {
         </Select>
       </div>
       <div className="mt-8 overflow-x-auto bg-card shadow-luxe">
-        <Table>
+        <Table className="mobile-card-table">
           <TableHeader>
             <TableRow>
               <TableHead>Guest</TableHead>
@@ -196,7 +196,7 @@ function Bookings() {
               );
               return (
                 <TableRow key={b.id}>
-                  <TableCell>
+                  <TableCell data-label="Guest">
                     <div className="font-medium">{b.guest_name}</div>
                     <div className="text-xs text-muted-foreground">
                       {b.guest_phone} · {b.guest_email}
@@ -205,23 +205,23 @@ function Bookings() {
                       <div className="text-xs italic text-muted-foreground">“{b.notes}”</div>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Room">
                     {b.room_code}{" "}
                     <span className="text-xs text-muted-foreground">{b.room_name}</span>
                   </TableCell>
-                  <TableCell className="whitespace-nowrap text-sm">
+                  <TableCell data-label="Dates" className="whitespace-nowrap text-sm">
                     {b.check_in} → {b.check_out}
                     <div className="text-xs text-muted-foreground">{b.guests} guest(s)</div>
                   </TableCell>
-                  <TableCell>{rateAmount(b.total, b.rate_currency)}</TableCell>
-                  <TableCell className="whitespace-nowrap text-sm">
+                  <TableCell data-label="Total">{rateAmount(b.total, b.rate_currency)}</TableCell>
+                  <TableCell data-label="Room-service bill" className="whitespace-nowrap text-sm">
                     {lkr(roomServiceTotal)}
                     <div className="text-xs text-muted-foreground">
                       {lkr(roomServicePaid)} paid ·{" "}
                       {lkr(Math.max(0, roomServiceTotal - roomServicePaid))} due
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Status">
                     <Badge
                       variant={
                         b.status === "cancelled"
@@ -234,7 +234,7 @@ function Bookings() {
                       {b.status.replace("_", " ")}
                     </Badge>
                   </TableCell>
-                  <TableCell className="space-x-2 whitespace-nowrap">
+                  <TableCell data-label="Actions" className="space-x-2 whitespace-nowrap">
                     {(next[b.status] ?? []).map((n) => (
                       <Button
                         key={n.to}

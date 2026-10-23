@@ -19,6 +19,7 @@ import {
   ClipboardList,
   PanelLeftClose,
   PanelLeftOpen,
+  Menu,
 } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/integrations/firebase/client";
@@ -31,11 +32,14 @@ import {
 } from "@/lib/firebase-data";
 import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
 import { staffRoleLabel, type StaffRole } from "@/lib/staff-roles";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 export function StaffShell({ role, children }: { role: StaffRole; children: ReactNode }) {
   const qc = useQueryClient();
   const nav = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const isAdmin = role === "admin";
   const isHotelCashier = role === "cashier";
   const canSeeBookings = isAdmin || isHotelCashier;
@@ -199,31 +203,65 @@ export function StaffShell({ role, children }: { role: StaffRole; children: Reac
         </button>
       </aside>
       <div className="flex-1 overflow-x-hidden">
-        <Link
-          to="/"
-          className="flex items-center border-b border-sidebar-border/60 bg-sidebar/90 px-4 py-3 text-sidebar-foreground shadow-luxe backdrop-blur-xl md:hidden"
-        >
-          <BrandLogo size="staff" subtitle={portalSubtitle} />
-        </Link>
-        <div className="flex gap-2 overflow-x-auto border-b border-sidebar-border/60 bg-sidebar/90 p-3 text-sidebar-foreground shadow-luxe backdrop-blur-xl md:hidden">
-          {links.map((link) => {
-            const hashOption = "hash" in link ? { hash: link.hash } : {};
-            return (
-              <Link
-                key={link.label}
-                to={link.to}
-                {...hashOption}
-                className="whitespace-nowrap px-3 py-1 text-xs"
-                activeProps={{ className: "text-sidebar-primary" }}
+        <div className="flex items-center justify-between border-b border-sidebar-border/60 bg-sidebar/90 px-4 py-3 text-sidebar-foreground shadow-luxe backdrop-blur-xl md:hidden">
+          <Link to="/" aria-label="Vaasal Villa home">
+            <BrandLogo size="staff" subtitle={portalSubtitle} />
+          </Link>
+          <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="Open staff navigation">
+                <Menu className="size-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent
+              side="left"
+              className="w-[min(88vw,20rem)] overflow-y-auto bg-sidebar text-sidebar-foreground"
+            >
+              <SheetTitle className="mb-6 pr-8 text-left text-sidebar-primary">
+                {portalSubtitle}
+              </SheetTitle>
+              <nav aria-label="Staff navigation" className="space-y-1">
+                {links.map((link) => {
+                  const Icon = link.icon;
+                  const hashOption = "hash" in link ? { hash: link.hash } : {};
+                  return (
+                    <SheetClose asChild key={link.label}>
+                      <Link
+                        to={link.to}
+                        {...hashOption}
+                        activeOptions={{ exact: !!link.exact }}
+                        className="flex min-h-11 items-center gap-3 rounded-sm px-3 py-2.5 text-sm opacity-85 hover:bg-sidebar-accent hover:opacity-100"
+                        activeProps={{
+                          className: "bg-sidebar-accent text-sidebar-primary opacity-100",
+                        }}
+                      >
+                        <span className="relative">
+                          <Icon className="size-4" />
+                          {!!link.badge && (
+                            <span className="absolute -right-3 -top-3 min-w-4 rounded-full bg-destructive px-1 text-center text-[10px] leading-4 text-destructive-foreground">
+                              {link.badge > 99 ? "99+" : link.badge}
+                            </span>
+                          )}
+                        </span>
+                        <span className="flex-1">{link.label}</span>
+                      </Link>
+                    </SheetClose>
+                  );
+                })}
+              </nav>
+              <Button
+                variant="ghost"
+                className="mt-5 w-full justify-start gap-3 px-3"
+                onClick={() => {
+                  setMobileNavOpen(false);
+                  void logout();
+                }}
               >
-                {link.label}
-                {!!link.badge && <span className="ml-1 text-destructive">({link.badge})</span>}
-              </Link>
-            );
-          })}
-          <button onClick={logout} className="px-3 text-xs">
-            Sign out
-          </button>
+                <LogOut className="size-4" />
+                Sign out
+              </Button>
+            </SheetContent>
+          </Sheet>
         </div>
         <div className="p-6 md:p-10">{children}</div>
       </div>

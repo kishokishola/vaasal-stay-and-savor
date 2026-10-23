@@ -8,13 +8,16 @@ export function useFirestoreRealtime(
   queryKey: QueryKey,
   subscribe: ChangeListener,
   enabled = true,
+  onError?: (error: Error) => void,
 ) {
   const queryClient = useQueryClient();
   const queryKeyHash = hashKey(queryKey);
   const queryKeyRef = useRef(queryKey);
   const subscribeRef = useRef(subscribe);
+  const errorRef = useRef(onError);
   queryKeyRef.current = queryKey;
   subscribeRef.current = subscribe;
+  errorRef.current = onError;
 
   useEffect(() => {
     if (!enabled || typeof window === "undefined") return;
@@ -24,6 +27,7 @@ export function useFirestoreRealtime(
       },
       (error) => {
         console.error("Firestore realtime updates failed.", error);
+        errorRef.current?.(error);
         void queryClient.invalidateQueries({ queryKey: queryKeyRef.current });
       },
     );

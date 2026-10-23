@@ -410,7 +410,7 @@ function Orders() {
       </div>
 
       <div id="order-queue" className="mt-6 overflow-x-auto bg-card shadow-luxe">
-        <Table>
+        <Table className="mobile-card-table">
           <TableHeader>
             <TableRow>
               <TableHead>#</TableHead>
@@ -448,27 +448,27 @@ function Orders() {
               const paid = collectedFor(order);
               return (
                 <TableRow key={order.id}>
-                  <TableCell>{order.order_no}</TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell data-label="#"> {order.order_no}</TableCell>
+                  <TableCell data-label="Time" className="text-sm">
                     {new Date(order.created_at).toLocaleTimeString([], {
                       hour: "2-digit",
                       minute: "2-digit",
                     })}
                   </TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell data-label="Type" className="text-sm">
                     {order.order_type.replace("_", " ")} {order.table_no && `· T${order.table_no}`}{" "}
                     {order.room_code && `· ${order.room_code}`}
                   </TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell data-label="Customer" className="text-sm">
                     {order.customer_name || "Walk-in"}
                     {order.customer_phone && (
                       <div className="text-xs text-muted-foreground">{order.customer_phone}</div>
                     )}
                   </TableCell>
-                  <TableCell className="max-w-64 text-xs text-muted-foreground">
+                  <TableCell data-label="Items" className="max-w-64 text-xs text-muted-foreground">
                     {order.order_items.map((item) => `${item.qty}× ${item.name}`).join(", ")}
                   </TableCell>
-                  <TableCell className="space-y-1">
+                  <TableCell data-label="Payment" className="space-y-1">
                     <Badge variant="secondary">{order.payment_method.replace("_", " ")}</Badge>
                     <div className="text-xs">
                       <Badge
@@ -483,7 +483,7 @@ function Orders() {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Order status">
                     <Select
                       value={
                         ["placed", "in_prep", "ready", "delivered", "cancelled"].includes(
@@ -507,10 +507,10 @@ function Orders() {
                       </SelectContent>
                     </Select>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell data-label="Total" className="text-right">
                     {rateAmount(order.total, orderCurrency(order))}
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Details">
                     <Button
                       size="icon"
                       variant="outline"
@@ -538,7 +538,7 @@ function Orders() {
           </p>
         </div>
         <div className="mt-4 overflow-x-auto bg-card shadow-luxe">
-          <Table>
+          <Table className="mobile-card-table">
             <TableHeader>
               <TableRow>
                 <TableHead>Reference</TableHead>
@@ -575,8 +575,10 @@ function Orders() {
               )}
               {requests?.map((request) => (
                 <TableRow key={request.id}>
-                  <TableCell className="font-mono text-xs">{request.id.slice(0, 8)}</TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell data-label="Reference" className="font-mono text-xs">
+                    {request.id.slice(0, 8)}
+                  </TableCell>
+                  <TableCell data-label="Received" className="text-sm">
                     {new Date(request.created_at).toLocaleString([], {
                       month: "short",
                       day: "numeric",
@@ -584,11 +586,11 @@ function Orders() {
                       minute: "2-digit",
                     })}
                   </TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell data-label="Customer" className="text-sm">
                     {request.customer_name}
                     <div className="text-xs text-muted-foreground">{request.customer_phone}</div>
                   </TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell data-label="Order type" className="text-sm">
                     {request.order_type.replace("_", " ")}
                     {request.order_reference && (
                       <div className="text-xs text-muted-foreground">
@@ -599,10 +601,13 @@ function Orders() {
                       <div className="text-xs text-muted-foreground">Note: {request.notes}</div>
                     )}
                   </TableCell>
-                  <TableCell className="whitespace-pre-wrap text-xs text-muted-foreground">
+                  <TableCell
+                    data-label="Items"
+                    className="whitespace-pre-wrap text-xs text-muted-foreground"
+                  >
                     {request.items_summary}
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Estimate">
                     {rateAmount(
                       request.converted_total ?? request.subtotal_estimate,
                       request.price_currency ?? "LKR",
@@ -611,7 +616,7 @@ function Orders() {
                       <div className="text-xs text-muted-foreground">Final POS total</div>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Status">
                     <Badge variant={request.status === "pending" ? "secondary" : "outline"}>
                       {request.status.replace("_", " ")}
                     </Badge>
@@ -619,7 +624,7 @@ function Orders() {
                       <div className="mt-1 text-xs">POS #{request.converted_order_no}</div>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Action">
                     {request.status === "pending" && (
                       <div className="flex gap-2">
                         <Button size="sm" onClick={() => void acceptRequest(request.id)}>
@@ -715,7 +720,7 @@ function Orders() {
         <div className="mt-4 grid gap-6 lg:grid-cols-2">
           <div className="overflow-x-auto bg-card p-4 shadow-luxe">
             <h3 className="mb-3 font-display text-xl">Sales by day</h3>
-            <Table>
+            <Table className="mobile-card-table">
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
@@ -731,11 +736,11 @@ function Orders() {
                 )}
                 {salesByDay.map((totals) => (
                   <TableRow key={`${totals.date}:${totals.currency}`}>
-                    <TableCell>
+                    <TableCell data-label="Date">
                       {totals.date} · {totals.currency}
                     </TableCell>
-                    <TableCell>{totals.orders}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell data-label="Orders">{totals.orders}</TableCell>
+                    <TableCell data-label="Gross / collected" className="text-right">
                       {rateAmount(totals.gross, totals.currency)} /{" "}
                       {rateAmount(totals.collected, totals.currency)}
                     </TableCell>
@@ -746,7 +751,7 @@ function Orders() {
           </div>
           <div className="overflow-x-auto bg-card p-4 shadow-luxe">
             <h3 className="mb-3 font-display text-xl">Top selling items</h3>
-            <Table>
+            <Table className="mobile-card-table">
               <TableHeader>
                 <TableRow>
                   <TableHead>Item</TableHead>
@@ -762,9 +767,9 @@ function Orders() {
                 )}
                 {topItems.map((item) => (
                   <TableRow key={`${item.currency}:${item.name}`}>
-                    <TableCell>{item.name}</TableCell>
-                    <TableCell>{item.qty}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell data-label="Item">{item.name}</TableCell>
+                    <TableCell data-label="Qty">{item.qty}</TableCell>
+                    <TableCell data-label="Sales" className="text-right">
                       {rateAmount(item.sales, item.currency)}
                     </TableCell>
                   </TableRow>
@@ -774,7 +779,7 @@ function Orders() {
           </div>
           <div className="overflow-x-auto bg-card p-4 shadow-luxe">
             <h3 className="mb-3 font-display text-xl">Payments by method</h3>
-            <Table>
+            <Table className="mobile-card-table">
               <TableHeader>
                 <TableRow>
                   <TableHead>Method</TableHead>
@@ -789,10 +794,12 @@ function Orders() {
                 )}
                 {paymentMix.map(({ method, currency, amount }) => (
                   <TableRow key={`${method}:${currency}`}>
-                    <TableCell className="capitalize">
+                    <TableCell data-label="Method" className="capitalize">
                       {method.replace("_", " ")} · {currency}
                     </TableCell>
-                    <TableCell className="text-right">{rateAmount(amount, currency)}</TableCell>
+                    <TableCell data-label="Collected" className="text-right">
+                      {rateAmount(amount, currency)}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

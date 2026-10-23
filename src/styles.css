@@ -166,3 +166,67 @@
     transform: none;
   }
 }
+
+@media (max-width: 767px) {
+  .mobile-card-table,
+  .mobile-card-table table {
+    display: block;
+    width: 100%;
+  }
+
+  .mobile-card-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .mobile-card-table tbody {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .mobile-card-table tbody > tr {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.375rem;
+    background: color-mix(in oklch, var(--color-card) 92%, transparent);
+  }
+
+  .mobile-card-table tbody > tr > td {
+    display: grid;
+    grid-template-columns: minmax(6rem, 0.8fr) minmax(0, 1.2fr);
+    gap: 0.65rem;
+    align-items: start;
+    min-width: 0;
+    border: 0;
+    padding: 0.4rem 0.2rem;
+    overflow-wrap: anywhere;
+    text-align: left !important;
+  }
+
+  .mobile-card-table tbody > tr > td::before {
+    content: attr(data-label);
+    color: var(--color-muted-foreground);
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+  }
+
+  .mobile-card-table tbody > tr > td[colspan] {
+    display: block;
+  }
+
+  .mobile-card-table tbody > tr > td[colspan]::before {
+    content: none;
+  }
+
+  .mobile-card-table input {
+    min-width: 0;
+    width: 100%;
+  }
+}

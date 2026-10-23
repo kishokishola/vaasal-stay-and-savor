@@ -3,6 +3,7 @@ import { publicAsset } from "@/lib/hotel";
 type BrandLogoProps = {
   size?: "header" | "footer" | "auth" | "staff";
   subtitle?: string;
+  name?: string;
 };
 
 const sizes = {
@@ -28,7 +29,11 @@ const sizes = {
   },
 };
 
-export function BrandLogo({ size = "header", subtitle = "Jaffna · Hotel" }: BrandLogoProps) {
+export function BrandLogo({
+  size = "header",
+  subtitle = "Jaffna · Hotel",
+  name = "Vaasal Villa",
+}: BrandLogoProps) {
   const style = sizes[size];
 
   return (
@@ -39,7 +44,7 @@ export function BrandLogo({ size = "header", subtitle = "Jaffna · Hotel" }: Bra
         className={`${style.mark} shrink-0 drop-shadow-[0_4px_12px_rgba(0,0,0,0.22)]`}
       />
       <span className="flex min-w-0 flex-col leading-none">
-        <span className={`whitespace-nowrap font-display ${style.name}`}>Vaasal Villa</span>
+        <span className={`whitespace-nowrap font-display ${style.name}`}>{name}</span>
         <span
           className={`mt-1.5 whitespace-nowrap font-sans uppercase tracking-[0.32em] text-gold ${style.subtitle}`}
         >

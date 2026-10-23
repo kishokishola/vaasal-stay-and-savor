@@ -192,7 +192,7 @@ function AuthPage() {
         staffPasswordResetActionSettings(window.location.origin, import.meta.env.BASE_URL),
       );
       setResetMessage(
-        "Firebase accepted the request. If this is a Firebase staff account, check the inbox and spam folder for a reset email, then open its link to set a new password. If no email arrives, ask the administrator to create the Firebase account in Staff → Create staff account. A reset request does not create an account.",
+        "Firebase accepted the request. Check your inbox and spam folder for the secure reset email, then open its one-time link to choose a new password. Firebase verifies the code through that link; it is not a six-digit code to type in. Your username is your staff email address. To change the login email, ask the administrator to provision and assign the new verified account.",
       );
     } catch (error) {
       toast.error(staffAuthErrorMessage(error, window.location.hostname));
@@ -383,7 +383,7 @@ function AuthPage() {
                 onClick={() => void resetPassword()}
                 disabled={busy || !configured}
               >
-                Forgot password? Send a reset link
+                Forgot password? Send secure reset email
               </button>
             )}
             <div className="border-t border-border pt-4">

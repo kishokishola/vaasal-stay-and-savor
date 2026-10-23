@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Shield, Waves, Sparkles, Headphones } from "lucide-react";
+import { Car, ConciergeBell, Sparkles, Utensils, Wifi } from "lucide-react";
 import { SiteLayout } from "@/components/site/SiteLayout";
 import { RoomCard } from "@/components/site/RoomCard";
 import { publicAsset, roomsQuery } from "@/lib/hotel";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { getReservedRoomIds, subscribeToDateLocks, subscribeToRooms } from "@/lib/firebase-data";
 import { hotelToday } from "@/lib/dates";
 import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
-import { useSiteSettings } from "@/lib/site-settings";
+import { DEFAULT_SITE_SETTINGS, useSiteSettings } from "@/lib/site-settings";
 import { usePriceCurrency } from "@/lib/price-currency-context";
 
 export const Route = createFileRoute("/")({
@@ -33,20 +33,12 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
-const features = [
-  {
-    icon: Sparkles,
-    title: "Relaxed Living",
-    text: "Calm interiors, crisp linen and quiet nights.",
-  },
-  { icon: Shield, title: "High Security", text: "Round-the-clock security for peace of mind." },
-  { icon: Waves, title: "Private Beach", text: "Golden shores just moments from your door." },
-  { icon: Headphones, title: "24/7 Support", text: "24-hour check-in and dedicated guest care." },
-];
+const serviceIcons = [Utensils, ConciergeBell, Car, Wifi, Sparkles];
 
 function Home() {
   const { data: rooms, isLoading, isError } = useQuery(roomsQuery);
   const { data: site } = useSiteSettings();
+  const services = (site?.services ?? DEFAULT_SITE_SETTINGS.services).slice(0, 4);
   const { currency } = usePriceCurrency();
   const today = hotelToday();
   const availabilityKey = ["reserved-room-ids", today];
@@ -108,13 +100,16 @@ function Home() {
               "Well-furnished rooms, a calm atmosphere and the essentials done beautifully — free high-speed WiFi, 24-hour check-in and dedicated guest support."}
           </p>
           <div className="mt-10 grid grid-cols-2 gap-8">
-            {features.map((f) => (
-              <div key={f.title}>
-                <f.icon className="size-6 text-accent" />
-                <div className="mt-3 font-display text-xl">{f.title}</div>
-                <p className="mt-1 text-sm text-muted-foreground">{f.text}</p>
-              </div>
-            ))}
+            {services.map((service, index) => {
+              const Icon = serviceIcons[index % serviceIcons.length]!;
+              return (
+                <div key={`${service.title}-${index}`}>
+                  <Icon className="size-6 text-accent" />
+                  <div className="mt-3 font-display text-xl">{service.title}</div>
+                  <p className="mt-1 text-sm text-muted-foreground">{service.description}</p>
+                </div>
+              );
+            })}
           </div>
         </Reveal>
         <Reveal delay={200} className="grid grid-cols-2 gap-4">

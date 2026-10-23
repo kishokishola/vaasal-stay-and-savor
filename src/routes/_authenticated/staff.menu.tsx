@@ -248,7 +248,7 @@ function MenuAdmin() {
         </p>
       )}
       <div className="mt-6 overflow-x-auto bg-card shadow-luxe">
-        <Table>
+        <Table className="mobile-card-table">
           <TableHeader>
             <TableRow>
               <TableHead>Image</TableHead>
@@ -280,7 +280,7 @@ function MenuAdmin() {
               ?.filter((item) => !item.deleted)
               .map((m) => (
                 <TableRow key={m.id}>
-                  <TableCell>
+                  <TableCell data-label="Image">
                     {m.image_url && (
                       <img
                         src={m.image_url}
@@ -298,7 +298,7 @@ function MenuAdmin() {
                       }
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Item">
                     <Input
                       defaultValue={m.name}
                       onBlur={(e) =>
@@ -306,7 +306,7 @@ function MenuAdmin() {
                       }
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Category">
                     <Input
                       defaultValue={m.category}
                       onBlur={(e) =>
@@ -314,7 +314,7 @@ function MenuAdmin() {
                       }
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Description">
                     <Input
                       defaultValue={m.description}
                       onBlur={(e) =>
@@ -323,7 +323,7 @@ function MenuAdmin() {
                       }
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Dining · Local LKR">
                     <Input
                       type="number"
                       className="w-28"
@@ -338,7 +338,7 @@ function MenuAdmin() {
                       }}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Dining · Foreign USD">
                     <Input
                       type="number"
                       className="w-28"
@@ -354,7 +354,7 @@ function MenuAdmin() {
                       }}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Room service · Local LKR">
                     <Input
                       type="number"
                       className="w-28"
@@ -370,7 +370,7 @@ function MenuAdmin() {
                       }}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Room service · Foreign USD">
                     <Input
                       type="number"
                       className="w-28"
@@ -386,13 +386,13 @@ function MenuAdmin() {
                       }}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Available">
                     <Switch
                       checked={m.available}
                       onCheckedChange={(v) => patch(m.id, { available: v })}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Actions">
                     <Button size="icon" variant="ghost" onClick={() => del(m.id)}>
                       <Trash2 />
                     </Button>
