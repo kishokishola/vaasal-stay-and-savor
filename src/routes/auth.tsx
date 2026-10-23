@@ -4,14 +4,13 @@ import { toast } from "sonner";
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
-  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
 import { auth, isFirebaseConfigured } from "@/integrations/firebase/client";
 import { getStaffAccess, submitStaffRegistration } from "@/lib/firebase-data";
 import { staffHomeRoute } from "@/lib/staff-roles";
-import { staffAuthErrorMessage, staffPasswordResetActionSettings } from "@/lib/staff-auth";
+import { staffAuthErrorMessage } from "@/lib/staff-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,7 +43,6 @@ function AuthPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [accessMessage, setAccessMessage] = useState("");
-  const [resetMessage, setResetMessage] = useState("");
   const [signupMessage, setSignupMessage] = useState("");
   const [passwordResetComplete, setPasswordResetComplete] = useState(false);
   const submitting = useRef(false);
@@ -156,7 +154,7 @@ function AuthPage() {
       setConfirmPassword("");
       setMode("signin");
       setSignupMessage(
-        "Your staff login and access request are submitted. The administrator must approve your role before you can enter a dashboard. Use your email as your username; password reset is available from sign-in.",
+        "Your staff login and access request are submitted. The administrator must approve your role before you can enter a dashboard. Use your email as your username.",
       );
     } catch (error) {
       if (accountCreated) {
@@ -173,30 +171,6 @@ function AuthPage() {
       }
     } finally {
       submitting.current = false;
-      setBusy(false);
-    }
-  }
-
-  async function resetPassword() {
-    const address = email.trim();
-    if (!address) {
-      toast.error("Enter your staff email address first.");
-      return;
-    }
-    setResetMessage("");
-    setBusy(true);
-    try {
-      await sendPasswordResetEmail(
-        auth,
-        address,
-        staffPasswordResetActionSettings(window.location.origin, import.meta.env.BASE_URL),
-      );
-      setResetMessage(
-        "Firebase accepted the request. Check your inbox and spam folder for the secure reset email, then open its one-time link to choose a new password. Firebase verifies the code through that link; it is not a six-digit code to type in. Your username is your staff email address. To change the login email, ask the administrator to provision and assign the new verified account.",
-      );
-    } catch (error) {
-      toast.error(staffAuthErrorMessage(error, window.location.hostname));
-    } finally {
       setBusy(false);
     }
   }
@@ -299,14 +273,6 @@ function AuthPage() {
                 {accessMessage}
               </p>
             )}
-            {resetMessage && (
-              <p
-                role="status"
-                className="rounded-sm border border-primary/30 bg-primary/5 p-3 text-sm leading-relaxed text-foreground"
-              >
-                {resetMessage}
-              </p>
-            )}
             {!configured && (
               <p
                 role="alert"
@@ -376,20 +342,10 @@ function AuthPage() {
                   ? "Sign in to staff portal"
                   : "Create staff login"}
             </Button>
-            {mode === "signin" && (
-              <button
-                type="button"
-                className="min-h-11 cursor-pointer rounded px-2 text-sm text-primary transition-colors hover:bg-secondary hover:underline hover:underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                onClick={() => void resetPassword()}
-                disabled={busy || !configured}
-              >
-                Forgot password? Send secure reset email
-              </button>
-            )}
             <div className="border-t border-border pt-4">
               <p className="text-xs leading-relaxed text-muted-foreground">
                 {mode === "signup"
-                  ? "Creating a login does not grant dashboard access. The administrator must assign your staff role. Use your email as your username so password recovery can reach you."
+                  ? "Creating a login does not grant dashboard access. The administrator must assign your staff role. Your email address is your username."
                   : "Use Create account for a new Firebase login. The administrator must assign your role before dashboard access. Legacy Supabase passwords cannot be reused."}
               </p>
             </div>

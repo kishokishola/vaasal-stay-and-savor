@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import {
   BarChart3,
   BedDouble,
@@ -203,8 +203,13 @@ function Overview() {
     ? [
         { name: "Available", value: data.availableRooms },
         { name: "Occupied / reserved", value: data.totalRooms - data.availableRooms },
-      ].filter((slice) => slice.value > 0)
+      ]
     : [];
+  const dashboardChart = [
+    ...roomAvailabilityChart.map((slice) => ({ ...slice, name: `Rooms - ${slice.name}` })),
+    ...bookingStatusChart.map((slice) => ({ ...slice, name: `Bookings - ${slice.name}` })),
+    ...orderTypeChart.map((slice) => ({ ...slice, name: `Orders - ${slice.name}` })),
+  ];
 
   return (
     <div>
@@ -236,22 +241,8 @@ function Overview() {
           </article>
         ))}
       </div>
-      <section className="mt-8 grid gap-5 md:grid-cols-2 2xl:grid-cols-3">
-        <DashboardPie
-          title="Room availability today"
-          data={roomAvailabilityChart}
-          loading={isLoading}
-        />
-        <DashboardPie
-          title="Booking status breakdown"
-          data={bookingStatusChart}
-          loading={isLoading}
-        />
-        <DashboardPie
-          title="Food orders by service type"
-          data={orderTypeChart}
-          loading={isLoading}
-        />
+      <section className="mt-8">
+        <DashboardPie data={dashboardChart} loading={isLoading} />
       </section>
       <div className="mt-10 grid gap-8 xl:grid-cols-[1fr_1.4fr]">
         <section className="bg-card p-6 shadow-luxe">
@@ -319,33 +310,63 @@ function Overview() {
 }
 
 function DashboardPie({
-  title,
   data,
   loading,
 }: {
-  title: string;
   data: { name: string; value: number }[];
   loading: boolean;
 }) {
-  const colors = ["#25b6c2", "#28c77b", "#f4b942", "#f06b62", "#7189e8", "#9a6de0"];
+  const colors = [
+    "#25b6c2",
+    "#28c77b",
+    "#f4b942",
+    "#f06b62",
+    "#7189e8",
+    "#9a6de0",
+    "#e879a9",
+    "#5b9bd5",
+    "#80a832",
+    "#d98439",
+    "#7c69b0",
+    "#3c9b84",
+  ];
   return (
-    <section className="min-w-0 rounded-sm bg-card p-5 shadow-luxe">
-      <h2 className="font-display text-xl">{title}</h2>
+    <section className="min-w-0 rounded-sm bg-card p-4 shadow-luxe sm:p-6">
+      <h2 className="font-display text-xl sm:text-2xl">Live operations breakdown</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Room availability today, booking statuses and restaurant order types.
+      </p>
       {loading ? (
         <p className="mt-4 text-sm text-muted-foreground">Loading live data…</p>
       ) : data.length ? (
-        <div className="mt-3 h-64 min-w-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie data={data} dataKey="value" nameKey="name" outerRadius="72%">
-                {data.map((slice, index) => (
-                  <Cell key={slice.name} fill={colors[index % colors.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
+        <div className="mt-4">
+          <div className="h-[300px] min-w-0 sm:h-[420px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={data} dataKey="value" nameKey="name" outerRadius="88%">
+                  {data.map((slice, index) => (
+                    <Cell key={slice.name} fill={colors[index % colors.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <ul className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 border-t border-border pt-4 sm:grid-cols-2 xl:grid-cols-3">
+            {data.map((slice, index) => (
+              <li key={slice.name} className="flex min-w-0 items-center gap-2 text-sm">
+                <span
+                  aria-hidden="true"
+                  className="size-3 shrink-0 rounded-full"
+                  style={{ backgroundColor: colors[index % colors.length] }}
+                />
+                <span className="min-w-0 flex-1 capitalize text-muted-foreground">
+                  {slice.name}
+                </span>
+                <span className="font-semibold tabular-nums">{slice.value}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       ) : (
         <p className="mt-4 text-sm text-muted-foreground">No data recorded for this chart yet.</p>
