@@ -181,7 +181,7 @@ export function StaffShell({ role, children }: { role: StaffRole; children: Reac
                 <span className="relative">
                   <Icon className="size-4" />
                   {!!link.badge && (
-                    <span className="absolute -right-3 -top-3 min-w-4 rounded-full bg-destructive px-1 text-center text-[10px] leading-4 text-destructive-foreground">
+                    <span className="absolute -right-3 -top-3 min-w-4 rounded-full bg-destructive px-1 text-center text-xs leading-5 text-destructive-foreground">
                       {link.badge > 99 ? "99+" : link.badge}
                     </span>
                   )}
@@ -238,7 +238,7 @@ export function StaffShell({ role, children }: { role: StaffRole; children: Reac
                         <span className="relative">
                           <Icon className="size-4" />
                           {!!link.badge && (
-                            <span className="absolute -right-3 -top-3 min-w-4 rounded-full bg-destructive px-1 text-center text-[10px] leading-4 text-destructive-foreground">
+                            <span className="absolute -right-3 -top-3 min-w-4 rounded-full bg-destructive px-1 text-center text-xs leading-5 text-destructive-foreground">
                               {link.badge > 99 ? "99+" : link.badge}
                             </span>
                           )}

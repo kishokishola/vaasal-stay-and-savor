@@ -259,7 +259,7 @@ function RoomCalendar() {
                       className={`border-l border-border p-1 text-center ${booking ? (booking.status === "pending" ? "bg-amber-100 dark:bg-amber-950" : booking.status === "cancelled" ? "bg-destructive/15" : booking.status === "checked_out" ? "bg-muted" : "bg-primary/15") : ""}`}
                     >
                       {booking && (
-                        <span className="block truncate text-[10px]">
+                        <span className="block truncate text-xs">
                           {index === Number(booking.check_in.slice(-2)) - 1
                             ? booking.guest_name
                             : "•"}

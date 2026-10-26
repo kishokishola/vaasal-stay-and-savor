@@ -41,7 +41,7 @@ npx firebase-tools deploy --only hosting --project YOUR_FIREBASE_PROJECT_ID
 
 ## Migrate existing Supabase data
 
-The migration reads rooms, bookings, menu items, orders/order items and role assignments from Supabase, preserves each room's existing `image_url`, and provisions Firebase Auth accounts. Existing room and menu data are read live from Supabase on the public pages when the Firebase catalogue is empty or unavailable. Room photos remain hosted where their URLs currently point. To add photos, create a **public** bucket in Supabase Storage, upload files from the Supabase dashboard, and paste each public URL into the staff room editor. The app does not grant browser users direct Supabase upload permissions. Existing Supabase passwords cannot be exported or reused; users must reset their Firebase password.
+The migration reads rooms, bookings, menu items, orders/order items and role assignments from Supabase, preserves each room's existing `image_url`, and provisions Firebase Auth accounts. Existing room and menu data are read live from Supabase on the public pages when the Firebase catalogue is empty or unavailable. In the staff room editor, choose a main photo and up to 12 gallery photos from a phone or computer; the app compresses and saves them as individual Firestore photo records, while only photo references are stored on the room. Existing hosted photo URLs and `/images/` paths can still be entered directly. This works with the Spark Free setup and does not require Firebase Storage. Publish the updated `firestore.rules` so public room pages can read photos and only administrators can add or change them.
 
 ## Admin and cashier sign-in
 

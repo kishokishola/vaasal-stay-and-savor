@@ -1,5 +1,6 @@
 import {
   collection,
+  addDoc,
   deleteDoc,
   doc,
   getDoc,
@@ -141,6 +142,49 @@ export async function getRooms(activeOnly = false) {
     .sort((a, b) => a.code.localeCompare(b.code));
 }
 
+export function validateRoomPhotoPayload(imageUrl: string, galleryUrls: string[]) {
+  for (const url of [imageUrl, ...galleryUrls]) {
+    if (url.startsWith("data:image/") && url.length > 750_000) {
+      throw new Error("A room photo is too large to save. Choose a smaller image.");
+    }
+  }
+}
+
+const roomPhotoPrefix = "firestore-room-photo:";
+
+export async function getRoomPhotoUrl(url: string) {
+  if (!url.startsWith(roomPhotoPrefix)) return url;
+  const photo = await getDoc(refFor("room_photos", url.slice(roomPhotoPrefix.length)));
+  const dataUrl: unknown = photo.exists() ? photo.data()["data_url"] : undefined;
+  if (typeof dataUrl !== "string") {
+    throw new Error("This room photo could not be loaded.");
+  }
+  return dataUrl;
+}
+
+async function persistRoomPhotos(room: Room) {
+  const createdPhotoIds: string[] = [];
+  async function persist(url: string) {
+    if (!url.startsWith("data:image/")) return url;
+    const photo = await addDoc(coll("room_photos"), {
+      data_url: url,
+      created_at: new Date().toISOString(),
+    });
+    createdPhotoIds.push(photo.id);
+    return `${roomPhotoPrefix}${photo.id}`;
+  }
+
+  try {
+    const image_url = await persist(room.image_url ?? "");
+    const gallery_urls: string[] = [];
+    for (const url of room.gallery_urls ?? []) gallery_urls.push(await persist(url));
+    return { room: { ...room, image_url, gallery_urls }, createdPhotoIds };
+  } catch (error) {
+    await Promise.all(createdPhotoIds.map((id) => deleteDoc(refFor("room_photos", id))));
+    throw error;
+  }
+}
+
 export async function saveRoom(room: Room) {
   requireFirebaseConfig();
   if (!room.code.trim() || !room.name.trim()) throw new Error("Room number and name are required.");
@@ -157,12 +201,23 @@ export async function saveRoom(room: Room) {
   }
   if (room.gallery_urls && room.gallery_urls.length > 12)
     throw new Error("Add no more than 12 room gallery image URLs.");
-  const { id, ...data } = room;
+  validateRoomPhotoPayload(room.image_url ?? "", room.gallery_urls ?? []);
   const duplicates = await getDocs(query(coll("rooms"), where("code", "==", room.code.trim())));
-  if (duplicates.docs.some((existing) => existing.id !== id))
+  if (duplicates.docs.some((existing) => existing.id !== room.id))
     throw new Error("That room number is already in use.");
-  if (id) await setDoc(refFor("rooms", id), data);
-  else await setDoc(doc(coll("rooms")), { ...data, created_at: new Date().toISOString() });
+  const { room: persistedRoom, createdPhotoIds } = await persistRoomPhotos(room);
+  const { id: persistedId, ...persistedData } = persistedRoom;
+  try {
+    if (persistedId) await setDoc(refFor("rooms", persistedId), persistedData);
+    else
+      await setDoc(doc(coll("rooms")), {
+        ...persistedData,
+        created_at: new Date().toISOString(),
+      });
+  } catch (error) {
+    await Promise.all(createdPhotoIds.map((photoId) => deleteDoc(refFor("room_photos", photoId))));
+    throw error;
+  }
 }
 
 export async function deleteRoom(id: string) {

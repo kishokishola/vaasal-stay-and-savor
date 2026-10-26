@@ -17,6 +17,7 @@ import { getPublicRoomByCode } from "@/lib/public-catalog";
 import { useFirestoreRealtime } from "@/hooks/useFirestoreRealtime";
 import { hotelToday } from "@/lib/dates";
 import { SiteLayout } from "@/components/site/SiteLayout";
+import { RoomPhoto } from "@/components/site/RoomPhoto";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { nightsBetween, publicAsset, rateAmount, roomRate } from "@/lib/hotel";
+import { nightsBetween, rateAmount, roomRate } from "@/lib/hotel";
 import { usePriceCurrency } from "@/lib/price-currency-context";
 
 export const Route = createFileRoute("/rooms/$code")({
@@ -201,14 +202,9 @@ function RoomDetail() {
   return (
     <SiteLayout>
       <section className="relative h-[60vh] min-h-[420px] overflow-hidden">
-        <img
-          src={publicAsset(photos[galleryIndex] ?? room.image_url ?? "/images/room-double.jpg")}
+        <RoomPhoto
+          src={photos[galleryIndex] ?? room.image_url ?? "/images/room-double.jpg"}
           alt={room.name}
-          onError={(event) => {
-            const image = event.currentTarget;
-            image.onerror = null;
-            image.src = publicAsset("/images/room-double.jpg");
-          }}
           className="absolute inset-0 h-full w-full object-cover"
         />
         <div className="absolute inset-0 bg-hero-overlay" />
@@ -220,7 +216,7 @@ function RoomDetail() {
               {roomRate(room, currency, "night") > 0
                 ? rateAmount(roomRate(room, currency, "night"), currency)
                 : "Rate not available"}{" "}
-              <span className="text-sm opacity-80">/ night</span>
+              <span className="text-base opacity-90">/ night</span>
             </p>
           </div>
         </div>
@@ -228,7 +224,13 @@ function RoomDetail() {
       <section className="mx-auto grid max-w-7xl gap-14 px-6 py-20 lg:grid-cols-[1fr_440px]">
         <div>
           <div className="eyebrow">The Room</div>
-          <p className="mt-4 text-lg leading-relaxed text-muted-foreground">{room.description}</p>
+          {room.description ? (
+            <p className="mt-4 text-lg leading-relaxed text-muted-foreground">{room.description}</p>
+          ) : (
+            <p className="mt-4 text-base text-muted-foreground">
+              Contact our team for more information about this room.
+            </p>
+          )}
           <div className="mt-10 grid grid-cols-2 gap-6 sm:grid-cols-4">
             {[
               { i: Users, t: `${room.capacity} Guests` },
@@ -238,7 +240,41 @@ function RoomDetail() {
             ].map((f) => (
               <div key={f.t} className="border border-border bg-card p-5">
                 <f.i className="size-5 text-accent" />
-                <div className="mt-3 text-sm">{f.t}</div>
+                <div className="mt-3 text-base">{f.t}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {[
+              {
+                label: "Overnight · LKR",
+                amount: roomRate(room, "LKR", "night"),
+                currency: "LKR" as const,
+              },
+              {
+                label: "Overnight · USD",
+                amount: roomRate(room, "USD", "night"),
+                currency: "USD" as const,
+              },
+              {
+                label: "Day rate · LKR",
+                amount: roomRate(room, "LKR", "day"),
+                currency: "LKR" as const,
+              },
+              {
+                label: "Day rate · USD",
+                amount: roomRate(room, "USD", "day"),
+                currency: "USD" as const,
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="flex items-center justify-between gap-3 border border-border bg-card p-4"
+              >
+                <span className="text-base text-muted-foreground">{item.label}</span>
+                <span className="text-base font-medium text-primary">
+                  {item.amount > 0 ? rateAmount(item.amount, item.currency) : "Not available"}
+                </span>
               </div>
             ))}
           </div>
@@ -253,23 +289,23 @@ function RoomDetail() {
                   onClick={() => setGalleryIndex(index)}
                   className={`shrink-0 border-2 ${galleryIndex === index ? "border-accent" : "border-transparent"}`}
                 >
-                  <img
-                    src={publicAsset(photo)}
+                  <RoomPhoto
+                    src={photo}
                     alt={`${room.name} view ${index + 1}`}
-                    className="size-20 object-cover"
+                    className="size-24 object-cover"
                   />
                 </button>
               ))}
             </div>
           )}
-          <div className="mt-6 rounded border border-border bg-card px-4 py-3 text-sm">
+          <div className="mt-6 rounded border border-border bg-card px-4 py-3 text-base">
             Current {period === "night" ? "overnight" : "day"} rate:{" "}
             <span className="font-medium text-primary">{rateAmount(rate, currency)}</span>
           </div>
           {(booked ?? []).length > 0 && (
             <div className="mt-10">
               <div className="eyebrow">Already booked</div>
-              <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
+              <ul className="mt-3 space-y-1 text-base text-muted-foreground">
                 {booked!.map((b, i) => (
                   <li key={i}>
                     {b.check_in} → {b.check_out}
@@ -286,11 +322,11 @@ function RoomDetail() {
               <h2 className="mt-4 text-3xl">
                 {done ? "Request received" : "Your booking request"}
               </h2>
-              <p className="mt-3 text-sm text-muted-foreground">
+              <p className="mt-3 text-base text-muted-foreground">
                 {done ? `Thank you, ${form.name}. ` : ""}
                 Our team will confirm your stay shortly. Payment is made at the hotel.
               </p>
-              <p className="mt-3 text-sm" aria-live="polite">
+              <p className="mt-3 text-base" aria-live="polite">
                 Status: {trackedBookingStatus?.replace("_", " ") ?? "checking"}
               </p>
               <Button asChild variant="outline" className="mt-6">
@@ -300,7 +336,7 @@ function RoomDetail() {
           ) : (
             <form onSubmit={submit} className="space-y-4">
               <h2 className="text-3xl">Reserve this room</h2>
-              <p className="text-xs text-muted-foreground">Pay at the hotel on arrival.</p>
+              <p className="text-sm text-muted-foreground">Pay at the hotel on arrival.</p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Rate currency</Label>

@@ -7,6 +7,9 @@
 @theme inline {
   --font-display: "DM Serif Display", Georgia, serif;
   --font-sans: "Fira Sans", system-ui, sans-serif;
+  --text-xs: 0.875rem;
+  --text-sm: 1rem;
+  --text-base: 1.0625rem;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -92,6 +95,7 @@
     background-attachment: fixed;
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    font-size: 1.0625rem;
   }
   h1,
   h2,
@@ -115,8 +119,8 @@
 }
 
 @utility eyebrow {
-  font-size: 0.72rem;
-  letter-spacing: 0.32em;
+  font-size: 0.875rem;
+  letter-spacing: 0.24em;
   text-transform: uppercase;
   color: var(--accent);
   font-weight: 500;
@@ -212,7 +216,7 @@
   .mobile-card-table tbody > tr > td::before {
     content: attr(data-label);
     color: var(--color-muted-foreground);
-    font-size: 0.65rem;
+    font-size: 0.8rem;
     font-weight: 600;
     letter-spacing: 0.03em;
   }
